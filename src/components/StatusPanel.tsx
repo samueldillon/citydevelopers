@@ -1,6 +1,6 @@
 import type { GameState, PlayerId } from '../types';
 import { currentBuildCost, playerState, scoreBreakdownFor } from '../game/engine';
-import { AGENDA_INFO } from '../game/constants';
+import { AGENDA_INFO, priceTierBuilds } from '../game/constants';
 
 interface Props {
   state: GameState;
@@ -68,7 +68,8 @@ export default function StatusPanel({ state }: Props) {
           <dd>${currentBuildCost(state, 'commercial')}M</dd>
         </dl>
         <p className="agenda-detail">
-          Rises $1M every {state.playerOrder.length} new builds (either type, any player).
+          Rises $1M every {priceTierBuilds(state.board.length, state.playerOrder.length)} new builds (either
+          type, any player).
         </p>
       </div>
     </div>

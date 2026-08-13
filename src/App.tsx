@@ -254,8 +254,9 @@ export default function App() {
                 own tiles — you can't piggyback on another player's development.
               </li>
               <li>
-                New-build prices rise as the game goes: every N new builds (N = player count, either type, any
-                player) adds $1M to both types' price, for the rest of the game. Stacking costs stay fixed.
+                New-build prices rise as the game goes: every N new builds (N scales with player count and board
+                size — see the status panel for the current number) adds $1M to both types' price, for the rest
+                of the game. Stacking costs stay fixed.
               </li>
               <li>
                 Every tile you own needs a resident behind it: your total residential units (stories) must cover

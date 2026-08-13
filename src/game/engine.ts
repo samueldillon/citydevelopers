@@ -26,6 +26,7 @@ import {
   MIN_PLAYERS,
   poolsForBoardSize,
   PRICE_TIER_INCREMENT,
+  priceTierBuilds,
   STACK_COST,
   STARTING_CASH,
   VP_PER_UNIT,
@@ -250,13 +251,14 @@ export function residentialCapacitySurplus(board: Cell[][], player: PlayerId): n
   return residentialUnits(board, player) - occupiedTiles(board, player);
 }
 
-// New-build prices climb with the pace of the game: every N new builds (N =
-// active player count, either type, any player) bumps both types' price by
-// PRICE_TIER_INCREMENT. Sizing the tier to the player count means each tier
-// gives every player an equal shot at it regardless of turn order. Stacking
-// is unaffected.
+// New-build prices climb with the pace of the game: every N new builds
+// (either type, any player) bumps both types' price by PRICE_TIER_INCREMENT.
+// N is sized to both the player count (every tier gives each player an equal
+// shot at it) and the board size (so a bigger board's higher total build
+// count doesn't rack up far more tiers than a 5x5 game would). Stacking is
+// unaffected.
 export function currentBuildPriceTier(state: GameState): number {
-  return Math.floor(state.buildsExecuted / state.playerOrder.length);
+  return Math.floor(state.buildsExecuted / priceTierBuilds(state.board.length, state.playerOrder.length));
 }
 
 export function currentBuildCost(state: GameState, tileType: TileType): number {
