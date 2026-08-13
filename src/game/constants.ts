@@ -49,10 +49,13 @@ export const INITIAL_POOLS = {
 
 export const ALL_AGENDAS: AgendaId[] = ['landlord', 'cbd', 'lowrise', 'suburbs'];
 
+// Every agenda has exactly one winner (no ties): whoever's highest wins;
+// a tie is broken by cash on hand, then by turn order, so someone always
+// wins once at least one player qualifies.
 export const AGENDA_INFO: Record<AgendaId, { name: string; description: string; vp: number }> = {
   landlord: {
     name: 'Land Lord',
-    description: 'Own the most residential units on the board at game end. Tied for most = no bonus.',
+    description: 'Own the most residential units on the board at game end.',
     vp: 3,
   },
   cbd: {
@@ -63,12 +66,14 @@ export const AGENDA_INFO: Record<AgendaId, { name: string; description: string; 
   },
   lowrise: {
     name: 'Low Rise',
-    description: 'Own 4 or more single-story tiles (residential or commercial, never stacked) at game end.',
+    description:
+      'Own 4 or more single-story tiles (residential or commercial, never stacked) at game end — most among qualifying players wins.',
     vp: 3,
   },
   suburbs: {
     name: 'Suburbs',
-    description: 'Own 3 or more residential units on edge squares (the 16 border squares) at game end.',
+    description:
+      'Own 3 or more residential units on edge squares (the 16 border squares) at game end — most among qualifying players wins.',
     vp: 2,
   },
 };

@@ -526,13 +526,28 @@ function suburbsUnits(board: Cell[][], player: PlayerId): number {
   return total;
 }
 
-// Land Lord and Central Business District are single-winner agendas: you have
-// to be strictly ahead of every other active player, not just the field
-// average. A tie for the lead (with anyone, not only one rival) means nobody
-// gets the bonus.
-function isStrictlyAheadOfAll(playerOrder: PlayerId[], player: PlayerId, metric: (p: PlayerId) => number): boolean {
-  const mine = metric(player);
-  return playerOrder.every((p) => p === player || metric(p) < mine);
+// Every agenda has exactly one winner — no ties. Among players who qualify
+// (Land Lord and Central Business District have no minimum, so everyone
+// qualifies; Low Rise and Suburbs still gate on their numeric floor), the
+// highest metric wins. A tie is broken by cash on hand, then by turn order,
+// so there is always exactly one winner once at least one player qualifies.
+function determineAgendaWinner(
+  state: GameState,
+  metric: (p: PlayerId) => number,
+  qualifies: (p: PlayerId) => boolean,
+): PlayerId | null {
+  const qualified = state.playerOrder.filter(qualifies);
+  if (qualified.length === 0) return null;
+
+  const maxValue = Math.max(...qualified.map(metric));
+  const leaders = qualified.filter((p) => metric(p) === maxValue);
+  if (leaders.length === 1) return leaders[0];
+
+  const maxCash = Math.max(...leaders.map((p) => playerState(state, p).cash));
+  const cashLeaders = leaders.filter((p) => playerState(state, p).cash === maxCash);
+  if (cashLeaders.length === 1) return cashLeaders[0];
+
+  return state.playerOrder.find((p) => cashLeaders.includes(p))!;
 }
 
 function bestOtherValue(playerOrder: PlayerId[], player: PlayerId, metric: (p: PlayerId) => number): number {
@@ -541,29 +556,31 @@ function bestOtherValue(playerOrder: PlayerId[], player: PlayerId, metric: (p: P
 }
 
 // Agendas are public objectives, not a single secret dealt to each player —
-// every player is evaluated against all four, and can claim any (or all) of
-// the bonuses they actually qualify for.
+// every player is evaluated against all four, and can win any (or all) of
+// them.
 function evaluateAgenda(state: GameState, player: PlayerId, agenda: AgendaId): AgendaResult {
   const info = AGENDA_INFO[agenda];
 
   if (agenda === 'landlord') {
     const metric = (p: PlayerId) => residentialUnits(state.board, p);
-    const mine = metric(player);
-    const met = isStrictlyAheadOfAll(state.playerOrder, player, metric);
+    const winner = determineAgendaWinner(state, metric, () => true);
+    const met = winner === player;
     const best = bestOtherValue(state.playerOrder, player, metric);
     return {
       agenda,
       met,
       vp: met ? info.vp : 0,
-      detail: `${mine} residential units vs the best of the rest, ${best}.`,
+      detail: `${metric(player)} residential units vs the best of the rest, ${best}.`,
     };
   }
 
   if (agenda === 'cbd') {
     const groups = new Map(state.playerOrder.map((p) => [p, largestOwnedCommercialGroup(state.board, p)]));
-    const mine = groups.get(player)!;
     const metric = (p: PlayerId) => groups.get(p)!.size;
-    const met = mine.qualifies && isStrictlyAheadOfAll(state.playerOrder, player, metric);
+    const qualifies = (p: PlayerId) => groups.get(p)!.qualifies;
+    const winner = determineAgendaWinner(state, metric, qualifies);
+    const met = winner === player;
+    const mine = groups.get(player)!;
     const best = bestOtherValue(state.playerOrder, player, metric);
     return {
       agenda,
@@ -576,24 +593,30 @@ function evaluateAgenda(state: GameState, player: PlayerId, agenda: AgendaId): A
   }
 
   if (agenda === 'lowrise') {
-    const count = singleStoryTileCount(state.board, player);
-    const met = count >= 4;
+    const metric = (p: PlayerId) => singleStoryTileCount(state.board, p);
+    const qualifies = (p: PlayerId) => metric(p) >= 4;
+    const winner = determineAgendaWinner(state, metric, qualifies);
+    const met = winner === player;
+    const best = bestOtherValue(state.playerOrder, player, metric);
     return {
       agenda,
       met,
       vp: met ? info.vp : 0,
-      detail: `${count} single-story tiles.`,
+      detail: `${metric(player)} single-story tiles vs the best of the rest, ${best}.`,
     };
   }
 
   // suburbs
-  const units = suburbsUnits(state.board, player);
-  const met = units >= 3;
+  const metric = (p: PlayerId) => suburbsUnits(state.board, p);
+  const qualifies = (p: PlayerId) => metric(p) >= 3;
+  const winner = determineAgendaWinner(state, metric, qualifies);
+  const met = winner === player;
+  const best = bestOtherValue(state.playerOrder, player, metric);
   return {
     agenda,
     met,
     vp: met ? info.vp : 0,
-    detail: `${units} residential units on edge squares.`,
+    detail: `${metric(player)} residential units on edge squares vs the best of the rest, ${best}.`,
   };
 }
 
