@@ -192,14 +192,26 @@ export interface LegalBuild {
   cost: number;
 }
 
+// Every tile a player owns needs a residential unit behind it — commercial tiles
+// are staffed by residents, so a new commercial build is only legal while the
+// player has at least one unit of spare residential capacity (residential units
+// minus tiles currently occupied). Residential builds are always capacity-neutral:
+// they add one occupied tile and one residential unit at the same time.
+export function residentialCapacitySurplus(board: Cell[][], player: PlayerId): number {
+  return residentialUnits(board, player) - occupiedTiles(board, player);
+}
+
 export function legalBuildActions(state: GameState, player: PlayerId): LegalBuild[] {
   const squares = emptyAdjacencyLegalSquares(state.board);
   const cash = state.players[player].cash;
+  const hasResidentialCapacity = residentialCapacitySurplus(state.board, player) >= 1;
   const result: LegalBuild[] = [];
   for (const [r, c] of squares) {
     (['residential', 'commercial'] as TileType[]).forEach((tileType) => {
       const cost = BUILD_COST[tileType];
-      if (cash >= cost) result.push({ row: r, col: c, tileType, cost });
+      if (cash < cost) return;
+      if (tileType === 'commercial' && !hasResidentialCapacity) return;
+      result.push({ row: r, col: c, tileType, cost });
     });
   }
   return result;
@@ -263,13 +275,10 @@ function collectIncome(state: GameState): GameState {
 }
 
 function checkGameEnd(state: GameState): GameState {
-  const emptySquares = state.board.some((row) => row.some((cell) => cell === null));
-  const noStacksEither =
-    legalStackActions(state, 'P1').length === 0 && legalStackActions(state, 'P2').length === 0;
-  const boardLocked = !emptySquares && noStacksEither;
+  const boardFull = state.board.every((row) => row.every((cell) => cell !== null));
   const bothPassed = state.passStreak >= 2;
 
-  if (boardLocked || bothPassed) {
+  if (boardFull || bothPassed) {
     const result = scoreGame(state);
     return { ...state, phase: 'ended', result };
   }
@@ -358,6 +367,17 @@ export function applyPass(state: GameState): GameState {
 }
 
 // ---------- scoring ----------
+
+export function occupiedTiles(board: Cell[][], player: PlayerId): number {
+  let total = 0;
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const cell = board[r][c];
+      if (cell && cell !== 'townhall' && cell.owner === player) total += 1;
+    }
+  }
+  return total;
+}
 
 export function residentialUnits(board: Cell[][], player: PlayerId): number {
   let total = 0;

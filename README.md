@@ -22,9 +22,10 @@ Then open the printed local URL. `npm run build` produces a static production bu
 - Setup: each player places 2 free residential tiles (P1's first tile adjacent to Town Hall, P2's first tile adjacent to Town Hall, then each player's second tile adjacent to any existing tile), then is dealt one hidden secret agenda.
 - Every subsequent build must be orthogonally adjacent to an existing tile.
 - One action per turn: build (Residential $1M / Commercial $2M), stack a floor on your own tile (2nd floor $2M, 3rd floor $3M, drawn from a shared, type-specific pool: 8/8 for 2nd floor, 4/4 for 3rd floor), or pass.
+- Residential capacity: every tile you own needs a resident behind it. Your total residential units (stories) must be at least your total tile count (residential + commercial squares owned). Residential builds are self-covering (they add one unit and one tile at once), so this only ever gates commercial — you need spare residential capacity, typically from stacking, before building a new commercial tile.
 - Income collected at the end of every turn: $1M per residential unit + $2M per commercial unit owned.
-- Game ends when the board locks up (no empty squares and no legal stacks for either player) or both players pass in a row.
-- Scoring: 1 VP/residential unit, 2 VP/commercial unit, plus a secret agenda bonus (Land Lord, Central Business District, Low Rise, Suburbs — see in-app "Quick rules reference"). Ties break on cash on hand, then share the win.
+- Game ends when the board is completely full, or both players pass in a row.
+- Scoring: 1 VP/residential unit, 2 VP/commercial unit, plus a secret agenda bonus (Land Lord, Central Business District, Low Rise, Suburbs — see in-app "Quick rules reference"). Land Lord and Central Business District are comparative — only the player ahead gets the bonus, and a tie gives it to neither. Low Rise and Suburbs are flat thresholds either or both players can independently satisfy. Ties on final VP break on cash on hand, then share the win.
 
 Secret agendas stay hidden during play — in hot-seat mode via a self-serve "Peek my agenda" toggle you dismiss before passing the device, in PvC mode the AI's agenda is simply never shown — and are revealed on the results screen at game end.
 

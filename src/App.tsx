@@ -150,9 +150,14 @@ export default function App() {
             <summary>Quick rules reference</summary>
             <ul>
               <li>Build: Residential $1M / Commercial $2M, must be adjacent to an existing tile.</li>
+              <li>
+                Every tile you own needs a resident behind it: your total residential units (stories) must cover
+                your total tile count. Residential builds are self-covering, so this only ever gates commercial —
+                stack a residential tile to free up capacity before building commercial.
+              </li>
               <li>Stack: 2nd floor $2M, 3rd floor $3M, matching type, drawn from the shared pool.</li>
               <li>Income each turn: $1M per residential unit + $2M per commercial unit you own.</li>
-              <li>Game ends when the board locks up or both players pass in a row.</li>
+              <li>Game ends when the board is completely full, or both players pass in a row.</li>
               <li>Scoring: 1 VP/residential unit, 2 VP/commercial unit, plus your secret agenda bonus.</li>
               <ul>
                 {Object.values(AGENDA_INFO).map((a) => (

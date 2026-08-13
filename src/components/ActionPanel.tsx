@@ -1,5 +1,5 @@
 import type { GameState, TileType } from '../types';
-import { legalBuildActions, legalStackActions } from '../game/engine';
+import { legalBuildActions, legalStackActions, residentialCapacitySurplus } from '../game/engine';
 import { BUILD_COST } from '../game/constants';
 
 interface Props {
@@ -34,6 +34,7 @@ export default function ActionPanel({ state, selectedCell, onBuild, onStack, onC
     const builds = legalBuildActions(state, player).filter((a) => a.row === row && a.col === col);
     const canResidential = builds.some((a) => a.tileType === 'residential');
     const canCommercial = builds.some((a) => a.tileType === 'commercial');
+    const surplus = residentialCapacitySurplus(state.board, player);
     return (
       <div className="action-panel">
         <p className="hint">
@@ -49,6 +50,12 @@ export default function ActionPanel({ state, selectedCell, onBuild, onStack, onC
           Cancel
         </button>
         {cash < BUILD_COST.residential && <p className="warn">Not enough cash to build here.</p>}
+        {!canCommercial && surplus < 1 && cash >= BUILD_COST.commercial && (
+          <p className="warn">
+            Every tile needs a resident behind it — stack a residential tile to free up capacity before building
+            commercial.
+          </p>
+        )}
       </div>
     );
   }
