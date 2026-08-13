@@ -21,7 +21,6 @@ export interface Pools {
 
 export interface PlayerState {
   cash: number;
-  agenda: AgendaId;
   kind: PlayerKind;
   label: string;
 }
@@ -48,7 +47,8 @@ export interface ScoreBreakdown {
   residentialUnits: number;
   commercialUnits: number;
   baseVP: number;
-  agendaResult: AgendaResult;
+  agendaResults: AgendaResult[];
+  agendaVP: number;
   totalVP: number;
   cash: number;
 }

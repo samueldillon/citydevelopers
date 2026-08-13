@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import type { GameState, PlayerId } from '../types';
-import { commercialUnits, currentBuildCost, playerState, residentialUnits } from '../game/engine';
+import { currentBuildCost, playerState, scoreBreakdownFor } from '../game/engine';
 import { AGENDA_INFO } from '../game/constants';
 
 interface Props {
@@ -9,17 +8,8 @@ interface Props {
 
 function PlayerCard({ state, player }: { state: GameState; player: PlayerId }) {
   const p = playerState(state, player);
-  const res = residentialUnits(state.board, player);
-  const com = commercialUnits(state.board, player);
-  const liveVP = res * 1 + com * 2;
+  const score = scoreBreakdownFor(state, player);
   const isCurrent = state.currentPlayer === player && state.phase !== 'ended';
-  const [revealed, setRevealed] = useState(false);
-
-  // The screen may be shared by multiple humans (hot-seat), so every human
-  // seat's agenda stays hidden behind a self-serve peek toggle. AI agendas
-  // are simply never shown during play.
-  const canPeek = p.kind === 'human';
-  const showAgenda = revealed;
 
   return (
     <div className={`player-card owner-${player.toLowerCase()}-accent ${isCurrent ? 'active' : ''}`}>
@@ -30,27 +20,22 @@ function PlayerCard({ state, player }: { state: GameState; player: PlayerId }) {
         <dt>Cash</dt>
         <dd>${p.cash}M</dd>
         <dt>Residential units</dt>
-        <dd>{res}</dd>
+        <dd>{score.residentialUnits}</dd>
         <dt>Commercial units</dt>
-        <dd>{com}</dd>
+        <dd>{score.commercialUnits}</dd>
         <dt>VP so far</dt>
-        <dd title="Tile VP only — secret agenda bonus stays hidden until game end">{liveVP}</dd>
+        <dd title="Includes any agenda bonuses currently met — recalculated live, not locked in until game end">
+          {score.totalVP}
+        </dd>
       </dl>
-      {showAgenda && (
-        <p className="agenda-line">
-          Secret agenda: <strong>{AGENDA_INFO[p.agenda].name}</strong>
-        </p>
-      )}
-      {canPeek && !revealed && (
-        <button className="peek-btn" onClick={() => setRevealed(true)}>
-          Peek my agenda
-        </button>
-      )}
-      {canPeek && revealed && (
-        <button className="peek-btn" onClick={() => setRevealed(false)}>
-          Hide (pass the device)
-        </button>
-      )}
+      <ul className="agenda-progress">
+        {score.agendaResults.map((r) => (
+          <li key={r.agenda} className={r.met ? 'met' : ''}>
+            {AGENDA_INFO[r.agenda].name}
+            {r.met ? ` — met (+${r.vp})` : ''}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -25,17 +25,23 @@ function ScoreCard({ state, player }: { state: GameState; player: PlayerId }) {
         <dd>{score.residentialUnits} → {score.residentialUnits} VP</dd>
         <dt>Commercial units</dt>
         <dd>{score.commercialUnits} → {score.commercialUnits * 2} VP</dd>
-        <dt>Secret agenda</dt>
-        <dd>
-          {AGENDA_INFO[score.agendaResult.agenda].name} — {score.agendaResult.met ? 'Met' : 'Not met'}
-          {score.agendaResult.met ? ` (+${score.agendaResult.vp} VP)` : ''}
-        </dd>
-        <dd className="agenda-detail">{score.agendaResult.detail}</dd>
+        <dt>Agenda bonus</dt>
+        <dd>{score.agendaVP} VP</dd>
         <dt>Cash on hand</dt>
         <dd>${score.cash}M</dd>
         <dt>Total VP</dt>
         <dd className="total-vp">{score.totalVP}</dd>
       </dl>
+      <ul className="results-agenda-list">
+        {score.agendaResults.map((r) => (
+          <li key={r.agenda} className={r.met ? 'met' : ''}>
+            <strong>
+              {AGENDA_INFO[r.agenda].name} — {r.met ? `Met (+${r.vp} VP)` : 'Not met'}
+            </strong>
+            <span className="agenda-detail">{r.detail}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

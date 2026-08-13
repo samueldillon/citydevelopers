@@ -27,7 +27,7 @@ export default function GameSetup({ onStart }: Props) {
     <div className="mode-select">
       <h1>City Developers</h1>
       <p className="subtitle">
-        A 2-4 player area-control prototype — 5x5 board, secret agendas, escalating prices.
+        A 2-4 player area-control prototype — 5x5 board, open agenda bonuses anyone can chase, escalating prices.
       </p>
 
       <div className="setup-section">

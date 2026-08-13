@@ -1,5 +1,6 @@
 import type {
   Action,
+  AgendaId,
   AgendaResult,
   BuiltTile,
   Cell,
@@ -102,7 +103,6 @@ export function createInitialState(seats: SeatConfig[]): GameState {
   board[TOWN_HALL_ROW][TOWN_HALL_COL] = 'townhall';
 
   const ids = ALL_PLAYER_IDS.slice(0, seats.length);
-  const agendas = shuffle(ALL_AGENDAS).slice(0, seats.length);
   const humanCount = seats.filter((s) => s.kind === 'human').length;
   const aiCount = seats.length - humanCount;
 
@@ -118,7 +118,7 @@ export function createInitialState(seats: SeatConfig[]): GameState {
         : aiCount === 1
           ? 'Computer'
           : `Computer ${seatNumber}`;
-    players[id] = { cash: STARTING_CASH, agenda: agendas[i], kind, label };
+    players[id] = { cash: STARTING_CASH, kind, label };
   });
 
   // The coin flip generalizes to a full random turn order, fixed for the game.
@@ -540,8 +540,10 @@ function bestOtherValue(playerOrder: PlayerId[], player: PlayerId, metric: (p: P
   return others.length ? Math.max(...others) : 0;
 }
 
-function evaluateAgenda(state: GameState, player: PlayerId): AgendaResult {
-  const agenda = playerState(state, player).agenda;
+// Agendas are public objectives, not a single secret dealt to each player —
+// every player is evaluated against all four, and can claim any (or all) of
+// the bonuses they actually qualify for.
+function evaluateAgenda(state: GameState, player: PlayerId, agenda: AgendaId): AgendaResult {
   const info = AGENDA_INFO[agenda];
 
   if (agenda === 'landlord') {
@@ -595,17 +597,23 @@ function evaluateAgenda(state: GameState, player: PlayerId): AgendaResult {
   };
 }
 
+export function evaluateAllAgendas(state: GameState, player: PlayerId): AgendaResult[] {
+  return ALL_AGENDAS.map((agenda) => evaluateAgenda(state, player, agenda));
+}
+
 export function scoreBreakdownFor(state: GameState, player: PlayerId): ScoreBreakdown {
   const res = residentialUnits(state.board, player);
   const com = commercialUnits(state.board, player);
   const baseVP = res * VP_PER_UNIT.residential + com * VP_PER_UNIT.commercial;
-  const agendaResult = evaluateAgenda(state, player);
+  const agendaResults = evaluateAllAgendas(state, player);
+  const agendaVP = agendaResults.reduce((sum, r) => sum + r.vp, 0);
   return {
     residentialUnits: res,
     commercialUnits: com,
     baseVP,
-    agendaResult,
-    totalVP: baseVP + agendaResult.vp,
+    agendaResults,
+    agendaVP,
+    totalVP: baseVP + agendaVP,
     cash: playerState(state, player).cash,
   };
 }

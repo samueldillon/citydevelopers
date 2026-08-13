@@ -171,7 +171,11 @@ export default function App() {
                 unit + $2M per commercial unit you own — not on other players' turns.
               </li>
               <li>Game ends when the board is completely full, or every player passes in a row.</li>
-              <li>Scoring: 1 VP/residential unit, 2 VP/commercial unit, plus your secret agenda bonus.</li>
+              <li>
+                Scoring: 1 VP/residential unit, 2 VP/commercial unit, plus a bonus for every agenda below you
+                qualify for at game end — they're open to any player, and any number of players can each land
+                their own. Live progress toward each shows on your player card as you play.
+              </li>
               <ul>
                 {Object.values(AGENDA_INFO).map((a) => (
                   <li key={a.name}>
