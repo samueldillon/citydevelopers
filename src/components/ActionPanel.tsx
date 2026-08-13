@@ -1,5 +1,11 @@
 import type { GameState, TileType } from '../types';
-import { currentBuildCost, legalBuildActions, legalStackActions, residentialCapacitySurplus } from '../game/engine';
+import {
+  currentBuildCost,
+  legalBuildActions,
+  legalStackActions,
+  playerState,
+  residentialCapacitySurplus,
+} from '../game/engine';
 
 interface Props {
   state: GameState;
@@ -13,7 +19,7 @@ interface Props {
 
 export default function ActionPanel({ state, selectedCell, onBuild, onStack, onCancel, onPass, canPass }: Props) {
   const player = state.currentPlayer;
-  const cash = state.players[player].cash;
+  const cash = playerState(state, player).cash;
 
   if (!selectedCell) {
     return (

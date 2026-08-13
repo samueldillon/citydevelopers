@@ -1,29 +1,30 @@
 import type {
   Action,
-  AgendaId,
   AgendaResult,
   BuiltTile,
   Cell,
-  GameMode,
   GameResult,
   GameState,
   PlayerId,
   PlayerState,
   Pools,
   ScoreBreakdown,
+  SeatConfig,
+  SetupStepDef,
   TileType,
 } from '../types';
 import {
   AGENDA_INFO,
   ALL_AGENDAS,
+  ALL_PLAYER_IDS,
   BOARD_SIZE,
   BUILD_COST,
   INCOME_PER_UNIT,
   INITIAL_POOLS,
+  MAX_PLAYERS,
   MAX_STORIES,
-  PRICE_TIER_BUILDS,
+  MIN_PLAYERS,
   PRICE_TIER_INCREMENT,
-  SETUP_SEQUENCE,
   STACK_COST,
   STARTING_CASH,
   TOWN_HALL_COL,
@@ -42,8 +43,18 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export function otherPlayer(p: PlayerId): PlayerId {
-  return p === 'P1' ? 'P2' : 'P1';
+// Every read of a player's state should go through here — state.players only
+// ever holds entries for the game's active playerOrder, so a lookup miss
+// means a caller passed an id that isn't actually in this game.
+export function playerState(state: GameState, id: PlayerId): PlayerState {
+  const p = state.players[id];
+  if (!p) throw new Error(`Player ${id} is not active in this game`);
+  return p;
+}
+
+export function nextPlayer(playerOrder: PlayerId[], current: PlayerId): PlayerId {
+  const idx = playerOrder.indexOf(current);
+  return playerOrder[(idx + 1) % playerOrder.length];
 }
 
 export function cloneBoard(board: Cell[][]): Cell[][] {
@@ -75,64 +86,73 @@ export function isAdjacentToOwnTile(board: Cell[][], row: number, col: number, p
 
 // A player may only build adjacent to Town Hall or a tile they already own —
 // their development has to grow out from their own footprint, not piggyback
-// on the opponent's.
+// on another player's.
 export function isAdjacentToOwnOrTownHall(board: Cell[][], row: number, col: number, player: PlayerId): boolean {
   return isAdjacentToTownHall(row, col) || isAdjacentToOwnTile(board, row, col, player);
 }
 
 // ---------- setup ----------
 
-export function createInitialState(mode: GameMode): GameState {
+export function createInitialState(seats: SeatConfig[]): GameState {
+  if (seats.length < MIN_PLAYERS || seats.length > MAX_PLAYERS) {
+    throw new Error(`Player count must be between ${MIN_PLAYERS} and ${MAX_PLAYERS}`);
+  }
+
   const board: Cell[][] = Array.from({ length: BOARD_SIZE }, () => Array<Cell>(BOARD_SIZE).fill(null));
   board[TOWN_HALL_ROW][TOWN_HALL_COL] = 'townhall';
 
-  const agendas = shuffle(ALL_AGENDAS).slice(0, 2) as [AgendaId, AgendaId];
+  const ids = ALL_PLAYER_IDS.slice(0, seats.length);
+  const agendas = shuffle(ALL_AGENDAS).slice(0, seats.length);
+  const humanCount = seats.filter((s) => s.kind === 'human').length;
+  const aiCount = seats.length - humanCount;
 
-  // Coin flip: in hotseat both seats are human, so who is "P1" is cosmetic.
-  // In PvC, the coin flip decides whether the human or the AI goes first.
-  let p1Kind: 'human' | 'ai' = 'human';
-  let p2Kind: 'human' | 'ai' = 'human';
-  if (mode === 'pvc') {
-    const humanFirst = Math.random() < 0.5;
-    p1Kind = humanFirst ? 'human' : 'ai';
-    p2Kind = humanFirst ? 'ai' : 'human';
-  }
+  const players: Partial<Record<PlayerId, PlayerState>> = {};
+  ids.forEach((id, i) => {
+    const kind = seats[i].kind;
+    const seatNumber = i + 1;
+    const label =
+      kind === 'human'
+        ? humanCount === 1
+          ? 'You'
+          : `Player ${seatNumber}`
+        : aiCount === 1
+          ? 'Computer'
+          : `Computer ${seatNumber}`;
+    players[id] = { cash: STARTING_CASH, agenda: agendas[i], kind, label };
+  });
 
-  const players: Record<PlayerId, PlayerState> = {
-    P1: {
-      cash: STARTING_CASH,
-      agenda: agendas[0],
-      kind: p1Kind,
-      label: mode === 'pvc' ? (p1Kind === 'human' ? 'You' : 'Computer') : 'Player 1',
-    },
-    P2: {
-      cash: STARTING_CASH,
-      agenda: agendas[1],
-      kind: p2Kind,
-      label: mode === 'pvc' ? (p2Kind === 'human' ? 'You' : 'Computer') : 'Player 2',
-    },
-  };
-
+  // The coin flip generalizes to a full random turn order, fixed for the game.
+  const playerOrder = shuffle(ids);
   const pools: Pools = { ...INITIAL_POOLS };
+  const firstLabel = players[playerOrder[0]]!.label;
 
   return {
-    mode,
+    playerOrder,
     phase: 'setup',
     board,
     players,
     pools,
-    currentPlayer: 'P1',
+    currentPlayer: playerOrder[0],
     setupStep: 0,
     passStreak: 0,
     turnNumber: 0,
     buildsExecuted: 0,
-    log: ['Player 1 won the coin flip and places first.'],
+    log: [`${firstLabel} won the coin flip and places first.`],
   };
+}
+
+// Setup is two rounds through the turn order: everyone places their first
+// tile (adjacent to Town Hall only), then everyone places their second tile
+// (adjacent to Town Hall or their own first tile).
+export function buildSetupSequence(playerOrder: PlayerId[]): SetupStepDef[] {
+  const round1 = playerOrder.map((player) => ({ player, rule: 'townhall' as const }));
+  const round2 = playerOrder.map((player) => ({ player, rule: 'ownOrTownHall' as const }));
+  return [...round1, ...round2];
 }
 
 export function legalSetupSquares(state: GameState): Array<[number, number]> {
   if (state.phase !== 'setup') return [];
-  const stepDef = SETUP_SEQUENCE[state.setupStep];
+  const stepDef = buildSetupSequence(state.playerOrder)[state.setupStep];
   if (!stepDef) return [];
   const result: Array<[number, number]> = [];
   for (let r = 0; r < BOARD_SIZE; r++) {
@@ -149,7 +169,8 @@ export function legalSetupSquares(state: GameState): Array<[number, number]> {
 }
 
 export function placeSetupTile(state: GameState, row: number, col: number): GameState {
-  const stepDef = SETUP_SEQUENCE[state.setupStep];
+  const sequence = buildSetupSequence(state.playerOrder);
+  const stepDef = sequence[state.setupStep];
   if (!stepDef) throw new Error('Setup already complete');
   const legal = legalSetupSquares(state);
   if (!legal.some(([r, c]) => r === row && c === col)) {
@@ -161,17 +182,18 @@ export function placeSetupTile(state: GameState, row: number, col: number): Game
   board[row][col] = tile;
 
   const nextSetupStep = state.setupStep + 1;
-  const label = `${state.players[stepDef.player].label} places a residential tile at (${row + 1}, ${col + 1}).`;
+  const label = `${playerState(state, stepDef.player).label} places a residential tile at (${row + 1}, ${col + 1}).`;
 
-  if (nextSetupStep >= SETUP_SEQUENCE.length) {
+  if (nextSetupStep >= sequence.length) {
+    const firstPlayer = state.playerOrder[0];
     return {
       ...state,
       board,
       setupStep: nextSetupStep,
       phase: 'playing',
-      currentPlayer: 'P1',
+      currentPlayer: firstPlayer,
       turnNumber: 1,
-      log: [...state.log, label, 'Setup complete. Player 1 takes the first turn.'],
+      log: [...state.log, label, `Setup complete. ${playerState(state, firstPlayer).label} takes the first turn.`],
     };
   }
 
@@ -179,7 +201,7 @@ export function placeSetupTile(state: GameState, row: number, col: number): Game
     ...state,
     board,
     setupStep: nextSetupStep,
-    currentPlayer: SETUP_SEQUENCE[nextSetupStep].player,
+    currentPlayer: sequence[nextSetupStep].player,
     log: [...state.log, label],
   };
 }
@@ -214,12 +236,13 @@ export function residentialCapacitySurplus(board: Cell[][], player: PlayerId): n
   return residentialUnits(board, player) - occupiedTiles(board, player);
 }
 
-// New-build prices climb with the pace of the game: every PRICE_TIER_BUILDS new
-// builds (either type, either player) bumps both types' price by
-// PRICE_TIER_INCREMENT. Sized to the player count, so each tier gives every
-// player an equal shot at it regardless of turn order. Stacking is unaffected.
+// New-build prices climb with the pace of the game: every N new builds (N =
+// active player count, either type, any player) bumps both types' price by
+// PRICE_TIER_INCREMENT. Sizing the tier to the player count means each tier
+// gives every player an equal shot at it regardless of turn order. Stacking
+// is unaffected.
 export function currentBuildPriceTier(state: GameState): number {
-  return Math.floor(state.buildsExecuted / PRICE_TIER_BUILDS);
+  return Math.floor(state.buildsExecuted / state.playerOrder.length);
 }
 
 export function currentBuildCost(state: GameState, tileType: TileType): number {
@@ -228,7 +251,7 @@ export function currentBuildCost(state: GameState, tileType: TileType): number {
 
 export function legalBuildActions(state: GameState, player: PlayerId): LegalBuild[] {
   const squares = emptyAdjacencyLegalSquares(state.board, player);
-  const cash = state.players[player].cash;
+  const cash = playerState(state, player).cash;
   const hasResidentialCapacity = residentialCapacitySurplus(state.board, player) >= 1;
   const result: LegalBuild[] = [];
   for (const [r, c] of squares) {
@@ -258,7 +281,7 @@ function poolKeyFor(tileType: TileType, story: 2 | 3): keyof Pools {
 
 export function legalStackActions(state: GameState, player: PlayerId): LegalStack[] {
   const result: LegalStack[] = [];
-  const cash = state.players[player].cash;
+  const cash = playerState(state, player).cash;
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
       const cell = state.board[r][c];
@@ -284,7 +307,7 @@ export function hasAnyLegalAction(state: GameState, player: PlayerId): boolean {
 
 function collectIncome(state: GameState): GameState {
   const players = { ...state.players };
-  (['P1', 'P2'] as PlayerId[]).forEach((p) => {
+  state.playerOrder.forEach((p) => {
     let income = 0;
     for (let r = 0; r < BOARD_SIZE; r++) {
       for (let c = 0; c < BOARD_SIZE; c++) {
@@ -294,16 +317,19 @@ function collectIncome(state: GameState): GameState {
         }
       }
     }
-    players[p] = { ...players[p], cash: players[p].cash + income };
+    const ps = playerState(state, p);
+    players[p] = { ...ps, cash: ps.cash + income };
   });
   return { ...state, players };
 }
 
 function checkGameEnd(state: GameState): GameState {
   const boardFull = state.board.every((row) => row.every((cell) => cell !== null));
-  const bothPassed = state.passStreak >= 2;
+  // "Both players pass in a row" generalizes to a full round (every active
+  // player) passing with nobody acting.
+  const allPassed = state.passStreak >= state.playerOrder.length;
 
-  if (boardFull || bothPassed) {
+  if (boardFull || allPassed) {
     const result = scoreGame(state);
     return { ...state, phase: 'ended', result };
   }
@@ -311,7 +337,11 @@ function checkGameEnd(state: GameState): GameState {
 }
 
 function advanceTurn(state: GameState): GameState {
-  return { ...state, currentPlayer: otherPlayer(state.currentPlayer), turnNumber: state.turnNumber + 1 };
+  return {
+    ...state,
+    currentPlayer: nextPlayer(state.playerOrder, state.currentPlayer),
+    turnNumber: state.turnNumber + 1,
+  };
 }
 
 export function applyBuild(state: GameState, row: number, col: number, tileType: TileType): GameState {
@@ -327,7 +357,8 @@ export function applyBuild(state: GameState, row: number, col: number, tileType:
   board[row][col] = tile;
 
   const players = { ...state.players };
-  players[player] = { ...players[player], cash: players[player].cash - cost };
+  const ps = playerState(state, player);
+  players[player] = { ...ps, cash: ps.cash - cost };
 
   let next: GameState = {
     ...state,
@@ -335,10 +366,7 @@ export function applyBuild(state: GameState, row: number, col: number, tileType:
     players,
     passStreak: 0,
     buildsExecuted: state.buildsExecuted + 1,
-    log: [
-      ...state.log,
-      `${state.players[player].label} builds ${tileType} at (${row + 1}, ${col + 1}) for $${cost}M.`,
-    ],
+    log: [...state.log, `${ps.label} builds ${tileType} at (${row + 1}, ${col + 1}) for $${cost}M.`],
   };
   next = collectIncome(next);
   next = checkGameEnd(next);
@@ -357,7 +385,8 @@ export function applyStack(state: GameState, row: number, col: number): GameStat
   cell.stories = action.nextStory;
 
   const players = { ...state.players };
-  players[player] = { ...players[player], cash: players[player].cash - action.cost };
+  const ps = playerState(state, player);
+  players[player] = { ...ps, cash: ps.cash - action.cost };
 
   const pools = { ...state.pools, [action.poolKey]: state.pools[action.poolKey] - 1 };
 
@@ -369,9 +398,9 @@ export function applyStack(state: GameState, row: number, col: number): GameStat
     passStreak: 0,
     log: [
       ...state.log,
-      `${state.players[player].label} adds a floor (${action.nextStory}${
-        action.nextStory === 2 ? 'nd' : 'rd'
-      }) to their ${action.tileType} tile at (${row + 1}, ${col + 1}).`,
+      `${ps.label} adds a floor (${action.nextStory}${action.nextStory === 2 ? 'nd' : 'rd'}) to their ${
+        action.tileType
+      } tile at (${row + 1}, ${col + 1}).`,
     ],
   };
   next = collectIncome(next);
@@ -385,7 +414,7 @@ export function applyPass(state: GameState): GameState {
   let next: GameState = {
     ...state,
     passStreak: state.passStreak + 1,
-    log: [...state.log, `${state.players[player].label} passes.`],
+    log: [...state.log, `${playerState(state, player).label} passes.`],
   };
   next = collectIncome(next);
   next = checkGameEnd(next);
@@ -497,34 +526,50 @@ function suburbsUnits(board: Cell[][], player: PlayerId): number {
   return total;
 }
 
+// Land Lord and Central Business District are single-winner agendas: you have
+// to be strictly ahead of every other active player, not just the field
+// average. A tie for the lead (with anyone, not only one rival) means nobody
+// gets the bonus.
+function isStrictlyAheadOfAll(playerOrder: PlayerId[], player: PlayerId, metric: (p: PlayerId) => number): boolean {
+  const mine = metric(player);
+  return playerOrder.every((p) => p === player || metric(p) < mine);
+}
+
+function bestOtherValue(playerOrder: PlayerId[], player: PlayerId, metric: (p: PlayerId) => number): number {
+  const others = playerOrder.filter((p) => p !== player).map(metric);
+  return others.length ? Math.max(...others) : 0;
+}
+
 function evaluateAgenda(state: GameState, player: PlayerId): AgendaResult {
-  const agenda = state.players[player].agenda;
-  const opponent = otherPlayer(player);
+  const agenda = playerState(state, player).agenda;
   const info = AGENDA_INFO[agenda];
 
   if (agenda === 'landlord') {
-    const mine = residentialUnits(state.board, player);
-    const theirs = residentialUnits(state.board, opponent);
-    const met = mine > theirs;
+    const metric = (p: PlayerId) => residentialUnits(state.board, p);
+    const mine = metric(player);
+    const met = isStrictlyAheadOfAll(state.playerOrder, player, metric);
+    const best = bestOtherValue(state.playerOrder, player, metric);
     return {
       agenda,
       met,
       vp: met ? info.vp : 0,
-      detail: `${mine} residential units vs opponent's ${theirs}.`,
+      detail: `${mine} residential units vs the best of the rest, ${best}.`,
     };
   }
 
   if (agenda === 'cbd') {
-    const mine = largestOwnedCommercialGroup(state.board, player);
-    const theirs = largestOwnedCommercialGroup(state.board, opponent);
-    const met = mine.qualifies && mine.size > theirs.size;
+    const groups = new Map(state.playerOrder.map((p) => [p, largestOwnedCommercialGroup(state.board, p)]));
+    const mine = groups.get(player)!;
+    const metric = (p: PlayerId) => groups.get(p)!.size;
+    const met = mine.qualifies && isStrictlyAheadOfAll(state.playerOrder, player, metric);
+    const best = bestOtherValue(state.playerOrder, player, metric);
     return {
       agenda,
       met,
       vp: met ? info.vp : 0,
       detail: `Largest connected commercial group: ${mine.size} tiles (${
         mine.qualifies ? 'qualifies' : 'does not qualify'
-      } — needs 2+ tiles at 2+ stories) vs opponent's ${theirs.size}.`,
+      } — needs 2+ tiles at 2+ stories) vs the best of the rest, ${best}.`,
     };
   }
 
@@ -561,29 +606,30 @@ export function scoreBreakdownFor(state: GameState, player: PlayerId): ScoreBrea
     baseVP,
     agendaResult,
     totalVP: baseVP + agendaResult.vp,
-    cash: state.players[player].cash,
+    cash: playerState(state, player).cash,
   };
 }
 
 export function scoreGame(state: GameState): GameResult {
-  const scores: Record<PlayerId, ScoreBreakdown> = {
-    P1: scoreBreakdownFor(state, 'P1'),
-    P2: scoreBreakdownFor(state, 'P2'),
-  };
+  const scores: Partial<Record<PlayerId, ScoreBreakdown>> = {};
+  state.playerOrder.forEach((p) => {
+    scores[p] = scoreBreakdownFor(state, p);
+  });
+
+  const maxVP = Math.max(...state.playerOrder.map((p) => scores[p]!.totalVP));
+  const vpLeaders = state.playerOrder.filter((p) => scores[p]!.totalVP === maxVP);
 
   let winners: PlayerId[];
-  if (scores.P1.totalVP > scores.P2.totalVP) winners = ['P1'];
-  else if (scores.P2.totalVP > scores.P1.totalVP) winners = ['P2'];
-  else if (scores.P1.cash > scores.P2.cash) winners = ['P1'];
-  else if (scores.P2.cash > scores.P1.cash) winners = ['P2'];
-  else winners = ['P1', 'P2'];
-
-  const reason =
-    winners.length === 2
-      ? 'Tied on VP and cash — shared win.'
-      : scores[winners[0]].totalVP !== scores[otherPlayer(winners[0])].totalVP
-        ? 'Higher total VP.'
-        : 'Tied on VP, won on cash tiebreaker.';
+  let reason: string;
+  if (vpLeaders.length === 1) {
+    winners = vpLeaders;
+    reason = 'Higher total VP.';
+  } else {
+    const maxCash = Math.max(...vpLeaders.map((p) => scores[p]!.cash));
+    const cashLeaders = vpLeaders.filter((p) => scores[p]!.cash === maxCash);
+    winners = cashLeaders;
+    reason = cashLeaders.length === 1 ? 'Tied on VP, won on cash tiebreaker.' : 'Tied on VP and cash — shared win.';
+  }
 
   return { scores, winners, reason };
 }

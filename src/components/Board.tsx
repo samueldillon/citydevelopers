@@ -15,7 +15,7 @@ function key(r: number, c: number): string {
 }
 
 function ownerClass(owner: PlayerId): string {
-  return owner === 'P1' ? 'owner-p1' : 'owner-p2';
+  return `owner-${owner.toLowerCase()}`;
 }
 
 function cellContent(cell: Cell) {

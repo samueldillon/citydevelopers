@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { GameMode, GameState, TileType } from './types';
+import type { GameState, SeatConfig, TileType } from './types';
 import {
   applyAction,
   applyBuild,
@@ -10,9 +10,10 @@ import {
   legalSetupSquares,
   legalStackActions,
   placeSetupTile,
+  playerState,
 } from './game/engine';
 import { chooseAiAction, chooseAiSetupSquare } from './game/ai';
-import ModeSelect from './components/ModeSelect';
+import GameSetup from './components/GameSetup';
 import Board from './components/Board';
 import StatusPanel from './components/StatusPanel';
 import ActionPanel from './components/ActionPanel';
@@ -31,13 +32,13 @@ export default function App() {
   // Drive AI turns automatically, both during setup placement and normal play.
   useEffect(() => {
     if (!state || state.phase === 'ended') return;
-    const active = state.players[state.currentPlayer];
+    const active = playerState(state, state.currentPlayer);
     if (active.kind !== 'ai') return;
 
     const timer = setTimeout(() => {
       setState((prev) => {
         if (!prev || prev.phase === 'ended') return prev;
-        if (prev.players[prev.currentPlayer].kind !== 'ai') return prev;
+        if (playerState(prev, prev.currentPlayer).kind !== 'ai') return prev;
         if (prev.phase === 'setup') {
           const [r, c] = chooseAiSetupSquare(prev);
           return placeSetupTile(prev, r, c);
@@ -51,16 +52,16 @@ export default function App() {
 
   if (!state) {
     return (
-      <ModeSelect
-        onSelect={(mode: GameMode) => {
-          setState(createInitialState(mode));
+      <GameSetup
+        onStart={(seats: SeatConfig[]) => {
+          setState(createInitialState(seats));
           setSelectedCell(null);
         }}
       />
     );
   }
 
-  const humanTurn = state.phase !== 'ended' && state.players[state.currentPlayer].kind === 'human';
+  const humanTurn = state.phase !== 'ended' && playerState(state, state.currentPlayer).kind === 'human';
 
   const legalSquares = new Set<string>();
   const stackableSquares = new Set<string>();
@@ -104,11 +105,13 @@ export default function App() {
     setSelectedCell(null);
   }
 
-  const currentLabel = state.players[state.currentPlayer].label;
+  const currentLabel = playerState(state, state.currentPlayer).label;
   const stepText =
     state.phase === 'setup'
       ? `Setup — ${currentLabel} places a residential tile ${
-          state.setupStep < 2 ? 'adjacent to Town Hall' : 'adjacent to Town Hall or their own tile'
+          state.setupStep < state.playerOrder.length
+            ? 'adjacent to Town Hall'
+            : 'adjacent to Town Hall or their own tile'
         }.`
       : state.phase === 'playing'
         ? `${currentLabel}'s turn`
@@ -151,11 +154,11 @@ export default function App() {
             <ul>
               <li>
                 Build: Residential $1M / Commercial $2M base price, must be adjacent to Town Hall or one of your
-                own tiles — you can't piggyback on your opponent's development.
+                own tiles — you can't piggyback on another player's development.
               </li>
               <li>
-                New-build prices rise as the game goes: every 2 new builds (either type, either player) adds $1M
-                to both types' price, for the rest of the game. Stacking costs stay fixed.
+                New-build prices rise as the game goes: every N new builds (N = player count, either type, any
+                player) adds $1M to both types' price, for the rest of the game. Stacking costs stay fixed.
               </li>
               <li>
                 Every tile you own needs a resident behind it: your total residential units (stories) must cover
@@ -164,7 +167,7 @@ export default function App() {
               </li>
               <li>Stack: 2nd floor $2M, 3rd floor $3M, matching type, drawn from the shared pool.</li>
               <li>Income each turn: $1M per residential unit + $2M per commercial unit you own.</li>
-              <li>Game ends when the board is completely full, or both players pass in a row.</li>
+              <li>Game ends when the board is completely full, or every player passes in a row.</li>
               <li>Scoring: 1 VP/residential unit, 2 VP/commercial unit, plus your secret agenda bonus.</li>
               <ul>
                 {Object.values(AGENDA_INFO).map((a) => (

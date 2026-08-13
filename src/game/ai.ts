@@ -1,5 +1,5 @@
 import type { Action, GameState, PlayerId } from '../types';
-import { legalBuildActions, legalSetupSquares, legalStackActions, neighbors } from './engine';
+import { legalBuildActions, legalSetupSquares, legalStackActions, neighbors, playerState } from './engine';
 import { BOARD_SIZE, INCOME_PER_UNIT } from './constants';
 
 // Simple heuristic AI. Priority: always return a legal action. Beyond that,
@@ -29,7 +29,7 @@ export function chooseAiSetupSquare(state: GameState): [number, number] {
 }
 
 export function chooseAiAction(state: GameState, player: PlayerId): Action {
-  const agenda = state.players[player].agenda;
+  const agenda = playerState(state, player).agenda;
   const builds = legalBuildActions(state, player);
   const stacks = legalStackActions(state, player);
 

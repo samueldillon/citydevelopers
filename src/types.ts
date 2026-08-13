@@ -1,8 +1,7 @@
-export type PlayerId = 'P1' | 'P2';
+export type PlayerId = 'P1' | 'P2' | 'P3' | 'P4';
 export type TileType = 'residential' | 'commercial';
 export type PlayerKind = 'human' | 'ai';
 export type AgendaId = 'landlord' | 'cbd' | 'lowrise' | 'suburbs';
-export type GameMode = 'hotseat' | 'pvc';
 export type GamePhase = 'setup' | 'playing' | 'ended';
 
 export interface BuiltTile {
@@ -27,6 +26,12 @@ export interface PlayerState {
   label: string;
 }
 
+// A single configured seat, in the order chosen at setup (before the
+// turn-order shuffle assigns it a PlayerId).
+export interface SeatConfig {
+  kind: PlayerKind;
+}
+
 export interface SetupStepDef {
   player: PlayerId;
   rule: 'townhall' | 'ownOrTownHall';
@@ -49,16 +54,19 @@ export interface ScoreBreakdown {
 }
 
 export interface GameResult {
-  scores: Record<PlayerId, ScoreBreakdown>;
+  scores: Partial<Record<PlayerId, ScoreBreakdown>>;
   winners: PlayerId[];
   reason: string;
 }
 
 export interface GameState {
-  mode: GameMode;
+  // Active players for this game, 2-4 entries, in turn order (already
+  // randomized at creation — this doubles as both the setup placement order
+  // and the ongoing turn rotation).
+  playerOrder: PlayerId[];
   phase: GamePhase;
   board: Cell[][];
-  players: Record<PlayerId, PlayerState>;
+  players: Partial<Record<PlayerId, PlayerState>>;
   pools: Pools;
   currentPlayer: PlayerId;
   setupStep: number;

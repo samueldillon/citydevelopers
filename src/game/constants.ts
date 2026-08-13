@@ -1,8 +1,12 @@
-import type { AgendaId, SetupStepDef, TileType } from '../types';
+import type { AgendaId, PlayerId, TileType } from '../types';
 
 export const BOARD_SIZE = 5;
 export const TOWN_HALL_ROW = 2;
 export const TOWN_HALL_COL = 2;
+
+export const ALL_PLAYER_IDS: PlayerId[] = ['P1', 'P2', 'P3', 'P4'];
+export const MIN_PLAYERS = 2;
+export const MAX_PLAYERS = 4;
 
 export const STARTING_CASH = 3;
 
@@ -11,12 +15,12 @@ export const BUILD_COST: Record<TileType, number> = {
   commercial: 2,
 };
 
-// New-build prices escalate as the game goes on: every PRICE_TIER_BUILDS new
-// builds (of either type, combined) raises the price by PRICE_TIER_INCREMENT
-// for both types. Sized to the player count so every price tier gives each
-// player an equal shot at it, uncapped for the whole game. Stacking costs are
-// unaffected — this only targets the pace of new-tile expansion.
-export const PRICE_TIER_BUILDS = 2;
+// New-build prices escalate as the game goes on: every N new builds (N =
+// active player count, of either type, combined) raises the price by
+// PRICE_TIER_INCREMENT for both types. Sizing the tier to the player count
+// means every price bracket gives each player an equal shot at it regardless
+// of turn order, uncapped for the whole game. Stacking costs are unaffected —
+// this only targets the pace of new-tile expansion.
 export const PRICE_TIER_INCREMENT = 1;
 
 export const STACK_COST: Record<2 | 3, number> = {
@@ -42,13 +46,6 @@ export const INITIAL_POOLS = {
   res3: 4,
   com3: 4,
 };
-
-export const SETUP_SEQUENCE: SetupStepDef[] = [
-  { player: 'P1', rule: 'townhall' },
-  { player: 'P2', rule: 'townhall' },
-  { player: 'P1', rule: 'ownOrTownHall' },
-  { player: 'P2', rule: 'ownOrTownHall' },
-];
 
 export const ALL_AGENDAS: AgendaId[] = ['landlord', 'cbd', 'lowrise', 'suburbs'];
 
