@@ -2,6 +2,7 @@ import type {
   Action,
   AgendaId,
   AgendaResult,
+  AuctionState,
   BuiltTile,
   Cell,
   GameResult,
@@ -18,18 +19,15 @@ import {
   AGENDA_INFO,
   ALL_AGENDAS,
   ALL_PLAYER_IDS,
-  BOARD_SIZE,
   BUILD_COST,
   INCOME_PER_UNIT,
-  INITIAL_POOLS,
   MAX_PLAYERS,
   MAX_STORIES,
   MIN_PLAYERS,
+  poolsForBoardSize,
   PRICE_TIER_INCREMENT,
   STACK_COST,
   STARTING_CASH,
-  TOWN_HALL_COL,
-  TOWN_HALL_ROW,
   VP_PER_UNIT,
 } from './constants';
 
@@ -58,11 +56,23 @@ export function nextPlayer(playerOrder: PlayerId[], current: PlayerId): PlayerId
   return playerOrder[(idx + 1) % playerOrder.length];
 }
 
+// playerOrder rotated so `start` comes first — used both for auction bidding
+// order and for tie-breaks that favor whoever is "closest to the left of" a
+// given player.
+function cyclicFrom(playerOrder: PlayerId[], start: PlayerId): PlayerId[] {
+  const idx = playerOrder.indexOf(start);
+  return [...playerOrder.slice(idx), ...playerOrder.slice(0, idx)];
+}
+
 export function cloneBoard(board: Cell[][]): Cell[][] {
   return board.map((row) => row.map((cell) => (cell && cell !== 'townhall' ? { ...cell } : cell)));
 }
 
-export function neighbors(row: number, col: number): Array<[number, number]> {
+export function townHallPos(size: number): number {
+  return Math.floor(size / 2);
+}
+
+export function neighbors(row: number, col: number, size: number): Array<[number, number]> {
   const deltas: Array<[number, number]> = [
     [-1, 0],
     [1, 0],
@@ -71,15 +81,16 @@ export function neighbors(row: number, col: number): Array<[number, number]> {
   ];
   return deltas
     .map(([dr, dc]): [number, number] => [row + dr, col + dc])
-    .filter(([r, c]) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE);
+    .filter(([r, c]) => r >= 0 && r < size && c >= 0 && c < size);
 }
 
-export function isAdjacentToTownHall(row: number, col: number): boolean {
-  return neighbors(row, col).some(([r, c]) => r === TOWN_HALL_ROW && c === TOWN_HALL_COL);
+export function isAdjacentToTownHall(row: number, col: number, size: number): boolean {
+  const th = townHallPos(size);
+  return neighbors(row, col, size).some(([r, c]) => r === th && c === th);
 }
 
 export function isAdjacentToOwnTile(board: Cell[][], row: number, col: number, player: PlayerId): boolean {
-  return neighbors(row, col).some(([r, c]) => {
+  return neighbors(row, col, board.length).some(([r, c]) => {
     const cell = board[r][c];
     return cell !== null && cell !== 'townhall' && cell.owner === player;
   });
@@ -89,18 +100,19 @@ export function isAdjacentToOwnTile(board: Cell[][], row: number, col: number, p
 // their development has to grow out from their own footprint, not piggyback
 // on another player's.
 export function isAdjacentToOwnOrTownHall(board: Cell[][], row: number, col: number, player: PlayerId): boolean {
-  return isAdjacentToTownHall(row, col) || isAdjacentToOwnTile(board, row, col, player);
+  return isAdjacentToTownHall(row, col, board.length) || isAdjacentToOwnTile(board, row, col, player);
 }
 
 // ---------- setup ----------
 
-export function createInitialState(seats: SeatConfig[]): GameState {
+export function createInitialState(seats: SeatConfig[], boardSize: number): GameState {
   if (seats.length < MIN_PLAYERS || seats.length > MAX_PLAYERS) {
     throw new Error(`Player count must be between ${MIN_PLAYERS} and ${MAX_PLAYERS}`);
   }
 
-  const board: Cell[][] = Array.from({ length: BOARD_SIZE }, () => Array<Cell>(BOARD_SIZE).fill(null));
-  board[TOWN_HALL_ROW][TOWN_HALL_COL] = 'townhall';
+  const board: Cell[][] = Array.from({ length: boardSize }, () => Array<Cell>(boardSize).fill(null));
+  const th = townHallPos(boardSize);
+  board[th][th] = 'townhall';
 
   const ids = ALL_PLAYER_IDS.slice(0, seats.length);
   const humanCount = seats.filter((s) => s.kind === 'human').length;
@@ -123,7 +135,7 @@ export function createInitialState(seats: SeatConfig[]): GameState {
 
   // The coin flip generalizes to a full random turn order, fixed for the game.
   const playerOrder = shuffle(ids);
-  const pools: Pools = { ...INITIAL_POOLS };
+  const pools: Pools = poolsForBoardSize(boardSize);
   const firstLabel = players[playerOrder[0]]!.label;
 
   return {
@@ -154,12 +166,13 @@ export function legalSetupSquares(state: GameState): Array<[number, number]> {
   if (state.phase !== 'setup') return [];
   const stepDef = buildSetupSequence(state.playerOrder)[state.setupStep];
   if (!stepDef) return [];
+  const size = state.board.length;
   const result: Array<[number, number]> = [];
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
       if (state.board[r][c] !== null) continue;
       if (stepDef.rule === 'townhall') {
-        if (isAdjacentToTownHall(r, c)) result.push([r, c]);
+        if (isAdjacentToTownHall(r, c, size)) result.push([r, c]);
       } else {
         if (isAdjacentToOwnOrTownHall(state.board, r, c, stepDef.player)) result.push([r, c]);
       }
@@ -209,9 +222,10 @@ export function placeSetupTile(state: GameState, row: number, col: number): Game
 // ---------- legal actions during play ----------
 
 export function emptyAdjacencyLegalSquares(board: Cell[][], player: PlayerId): Array<[number, number]> {
+  const size = board.length;
   const result: Array<[number, number]> = [];
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
       if (board[r][c] === null && isAdjacentToOwnOrTownHall(board, r, c, player)) {
         result.push([r, c]);
       }
@@ -282,8 +296,9 @@ function poolKeyFor(tileType: TileType, story: 2 | 3): keyof Pools {
 export function legalStackActions(state: GameState, player: PlayerId): LegalStack[] {
   const result: LegalStack[] = [];
   const cash = playerState(state, player).cash;
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
+  const size = state.board.length;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
       const cell = state.board[r][c];
       if (!cell || cell === 'townhall') continue;
       if (cell.owner !== player) continue;
@@ -309,9 +324,10 @@ export function hasAnyLegalAction(state: GameState, player: PlayerId): boolean {
 // income for it — not every other player too.
 function collectIncome(state: GameState): GameState {
   const player = state.currentPlayer;
+  const size = state.board.length;
   let income = 0;
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
       const cell = state.board[r][c];
       if (cell && cell !== 'townhall' && cell.owner === player) {
         income += INCOME_PER_UNIT[cell.type] * cell.stories;
@@ -374,9 +390,14 @@ export function applyBuild(state: GameState, row: number, col: number, tileType:
   return next;
 }
 
+// Stacking to a 2nd floor is a normal flat-cost action. Stacking to a 3rd
+// floor is scarce enough to fight over — see initiateAuction below, which
+// this function no longer handles.
 export function applyStack(state: GameState, row: number, col: number): GameState {
   const player = state.currentPlayer;
-  const action = legalStackActions(state, player).find((a) => a.row === row && a.col === col);
+  const action = legalStackActions(state, player).find(
+    (a) => a.row === row && a.col === col && a.nextStory === 2,
+  );
   if (!action) throw new Error('Illegal stack action');
 
   const board = cloneBoard(state.board);
@@ -398,9 +419,7 @@ export function applyStack(state: GameState, row: number, col: number): GameStat
     passStreak: 0,
     log: [
       ...state.log,
-      `${ps.label} adds a floor (${action.nextStory}${action.nextStory === 2 ? 'nd' : 'rd'}) to their ${
-        action.tileType
-      } tile at (${row + 1}, ${col + 1}).`,
+      `${ps.label} adds a floor (2nd) to their ${action.tileType} tile at (${row + 1}, ${col + 1}).`,
     ],
   };
   next = collectIncome(next);
@@ -422,12 +441,170 @@ export function applyPass(state: GameState): GameState {
   return next;
 }
 
+// ---------- blind auctions for 3rd floors ----------
+
+function hasEligibleThirdFloorTile(board: Cell[][], player: PlayerId, tileType: TileType): boolean {
+  const size = board.length;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const cell = board[r][c];
+      if (cell && cell !== 'townhall' && cell.owner === player && cell.type === tileType && cell.stories === 2) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Wanting a 3rd floor triggers a blind auction instead of a flat price.
+// Every player who currently has an eligible tile of that type and can
+// afford the $3M floor may bid, in turn order starting with whoever
+// initiated it. The winner pays their bid (replacing the flat cost) and
+// immediately places it on one of their own eligible tiles — it can't be
+// banked. Turn order then simply continues as normal from the initiator;
+// winning the auction does not grant the winner an extra turn.
+export function initiateAuction(state: GameState, row: number, col: number): GameState {
+  const player = state.currentPlayer;
+  const action = legalStackActions(state, player).find(
+    (a) => a.row === row && a.col === col && a.nextStory === 3,
+  );
+  if (!action) throw new Error('Illegal auction initiation');
+
+  const tileType = action.tileType;
+  const eligibleBidders = cyclicFrom(state.playerOrder, player).filter((p) => {
+    const cash = playerState(state, p).cash;
+    return cash >= STACK_COST[3] && hasEligibleThirdFloorTile(state.board, p, tileType);
+  });
+
+  const auction: AuctionState = {
+    tileType,
+    initiator: player,
+    eligibleBidders,
+    bids: {},
+    nextBidderIndex: 0,
+    stage: 'bidding',
+  };
+
+  return {
+    ...state,
+    phase: 'auction',
+    auction,
+    log: [
+      ...state.log,
+      `${playerState(state, player).label} triggers a blind auction for a 3rd floor ${tileType} tile.`,
+    ],
+  };
+}
+
+export function currentAuctionBidder(state: GameState): PlayerId | null {
+  if (state.phase !== 'auction' || !state.auction || state.auction.stage !== 'bidding') return null;
+  return state.auction.eligibleBidders[state.auction.nextBidderIndex] ?? null;
+}
+
+export function submitAuctionBid(state: GameState, bidder: PlayerId, amount: number): GameState {
+  const auction = state.auction;
+  if (state.phase !== 'auction' || !auction || auction.stage !== 'bidding') {
+    throw new Error('No auction bidding in progress');
+  }
+  const expected = auction.eligibleBidders[auction.nextBidderIndex];
+  if (expected !== bidder) throw new Error("Not this bidder's turn to bid");
+
+  const cash = playerState(state, bidder).cash;
+  const clamped = Math.max(STACK_COST[3], Math.min(Math.round(amount), cash));
+
+  const bids = { ...auction.bids, [bidder]: clamped };
+  const nextBidderIndex = auction.nextBidderIndex + 1;
+  let next: GameState = { ...state, auction: { ...auction, bids, nextBidderIndex } };
+
+  if (nextBidderIndex >= auction.eligibleBidders.length) {
+    next = resolveAuctionBids(next);
+  }
+  return next;
+}
+
+function resolveAuctionBids(state: GameState): GameState {
+  const auction = state.auction!;
+  const maxBid = Math.max(...auction.eligibleBidders.map((p) => auction.bids[p]!));
+  const leaders = auction.eligibleBidders.filter((p) => auction.bids[p] === maxBid);
+  // Ties favor whoever is closest to the left of the initiator.
+  const cyclic = cyclicFrom(state.playerOrder, auction.initiator);
+  const winner = cyclic.find((p) => leaders.includes(p))!;
+
+  return {
+    ...state,
+    auction: { ...auction, stage: 'placing', winner, winningBid: maxBid },
+    log: [
+      ...state.log,
+      `Auction resolved: ${playerState(state, winner).label} wins the 3rd floor ${auction.tileType} tile for $${maxBid}M.`,
+    ],
+  };
+}
+
+export function eligibleAuctionPlacementSquares(state: GameState): Array<[number, number]> {
+  const auction = state.auction;
+  if (state.phase !== 'auction' || !auction || auction.stage !== 'placing' || !auction.winner) return [];
+  const size = state.board.length;
+  const result: Array<[number, number]> = [];
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const cell = state.board[r][c];
+      if (
+        cell &&
+        cell !== 'townhall' &&
+        cell.owner === auction.winner &&
+        cell.type === auction.tileType &&
+        cell.stories === 2
+      ) {
+        result.push([r, c]);
+      }
+    }
+  }
+  return result;
+}
+
+export function applyAuctionPlacement(state: GameState, row: number, col: number): GameState {
+  const auction = state.auction;
+  if (state.phase !== 'auction' || !auction || auction.stage !== 'placing' || !auction.winner) {
+    throw new Error('No auction placement in progress');
+  }
+  const legal = eligibleAuctionPlacementSquares(state).some(([r, c]) => r === row && c === col);
+  if (!legal) throw new Error('Illegal auction placement');
+
+  const board = cloneBoard(state.board);
+  const cell = board[row][col];
+  if (!cell || cell === 'townhall') throw new Error('No tile to stack on');
+  cell.stories = 3;
+
+  const poolKey = auction.tileType === 'residential' ? 'res3' : 'com3';
+  const pools = { ...state.pools, [poolKey]: state.pools[poolKey] - 1 };
+
+  const players = { ...state.players };
+  const ws = playerState(state, auction.winner);
+  players[auction.winner] = { ...ws, cash: ws.cash - auction.winningBid! };
+
+  let next: GameState = {
+    ...state,
+    board,
+    players,
+    pools,
+    phase: 'playing',
+    auction: undefined,
+    passStreak: 0,
+    log: [...state.log, `${ws.label} places their 3rd floor ${auction.tileType} tile at (${row + 1}, ${col + 1}).`],
+  };
+  next = collectIncome(next);
+  next = checkGameEnd(next);
+  if (next.phase !== 'ended') next = advanceTurn(next);
+  return next;
+}
+
 // ---------- scoring ----------
 
 export function occupiedTiles(board: Cell[][], player: PlayerId): number {
+  const size = board.length;
   let total = 0;
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
       const cell = board[r][c];
       if (cell && cell !== 'townhall' && cell.owner === player) total += 1;
     }
@@ -436,9 +613,10 @@ export function occupiedTiles(board: Cell[][], player: PlayerId): number {
 }
 
 export function residentialUnits(board: Cell[][], player: PlayerId): number {
+  const size = board.length;
   let total = 0;
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
       const cell = board[r][c];
       if (cell && cell !== 'townhall' && cell.owner === player && cell.type === 'residential') {
         total += cell.stories;
@@ -449,9 +627,10 @@ export function residentialUnits(board: Cell[][], player: PlayerId): number {
 }
 
 export function commercialUnits(board: Cell[][], player: PlayerId): number {
+  const size = board.length;
   let total = 0;
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
       const cell = board[r][c];
       if (cell && cell !== 'townhall' && cell.owner === player && cell.type === 'commercial') {
         total += cell.stories;
@@ -461,28 +640,29 @@ export function commercialUnits(board: Cell[][], player: PlayerId): number {
   return total;
 }
 
-function largestOwnedCommercialGroup(board: Cell[][], player: PlayerId): { size: number; qualifies: boolean } {
-  const visited = Array.from({ length: BOARD_SIZE }, () => Array(BOARD_SIZE).fill(false));
-  let bestSize = 0;
-  let bestQualifies = false;
+// Largest connected cluster of a player's own commercial tiles, scored by
+// total commercial units (stories) in that cluster — not raw tile count, so
+// stacking within a cluster helps win it too.
+function largestOwnedCommercialClusterUnits(board: Cell[][], player: PlayerId): number {
+  const size = board.length;
+  const visited = Array.from({ length: size }, () => Array(size).fill(false));
+  let best = 0;
 
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
       const cell = board[r][c];
       if (visited[r][c] || !cell || cell === 'townhall') continue;
       if (cell.type !== 'commercial' || cell.owner !== player) continue;
 
-      // flood fill this group (only through this player's own commercial tiles)
+      // flood fill this cluster (only through this player's own commercial tiles)
       const stack: Array<[number, number]> = [[r, c]];
       visited[r][c] = true;
-      let size = 0;
-      let tallCount = 0;
+      let units = 0;
       while (stack.length) {
         const [cr, cc] = stack.pop()!;
-        size += 1;
         const ccell = board[cr][cc];
-        if (ccell && ccell !== 'townhall' && ccell.stories >= 2) tallCount += 1;
-        for (const [nr, nc] of neighbors(cr, cc)) {
+        if (ccell && ccell !== 'townhall') units += ccell.stories;
+        for (const [nr, nc] of neighbors(cr, cc, size)) {
           if (visited[nr][nc]) continue;
           const ncell = board[nr][nc];
           if (ncell && ncell !== 'townhall' && ncell.type === 'commercial' && ncell.owner === player) {
@@ -491,19 +671,17 @@ function largestOwnedCommercialGroup(board: Cell[][], player: PlayerId): { size:
           }
         }
       }
-      if (size > bestSize) {
-        bestSize = size;
-        bestQualifies = tallCount >= 2;
-      }
+      if (units > best) best = units;
     }
   }
-  return { size: bestSize, qualifies: bestQualifies };
+  return best;
 }
 
 function singleStoryTileCount(board: Cell[][], player: PlayerId): number {
+  const size = board.length;
   let count = 0;
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
       const cell = board[r][c];
       if (cell && cell !== 'townhall' && cell.owner === player && cell.stories === 1) count += 1;
     }
@@ -512,10 +690,11 @@ function singleStoryTileCount(board: Cell[][], player: PlayerId): number {
 }
 
 function suburbsUnits(board: Cell[][], player: PlayerId): number {
+  const size = board.length;
   let total = 0;
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      const isEdge = r === 0 || r === BOARD_SIZE - 1 || c === 0 || c === BOARD_SIZE - 1;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const isEdge = r === 0 || r === size - 1 || c === 0 || c === size - 1;
       if (!isEdge) continue;
       const cell = board[r][c];
       if (cell && cell !== 'townhall' && cell.owner === player && cell.type === 'residential') {
@@ -575,20 +754,15 @@ function evaluateAgenda(state: GameState, player: PlayerId, agenda: AgendaId): A
   }
 
   if (agenda === 'cbd') {
-    const groups = new Map(state.playerOrder.map((p) => [p, largestOwnedCommercialGroup(state.board, p)]));
-    const metric = (p: PlayerId) => groups.get(p)!.size;
-    const qualifies = (p: PlayerId) => groups.get(p)!.qualifies;
-    const winner = determineAgendaWinner(state, metric, qualifies);
+    const metric = (p: PlayerId) => largestOwnedCommercialClusterUnits(state.board, p);
+    const winner = determineAgendaWinner(state, metric, () => true);
     const met = winner === player;
-    const mine = groups.get(player)!;
     const best = bestOtherValue(state.playerOrder, player, metric);
     return {
       agenda,
       met,
       vp: met ? info.vp : 0,
-      detail: `Largest connected commercial group: ${mine.size} tiles (${
-        mine.qualifies ? 'qualifies' : 'does not qualify'
-      } — needs 2+ tiles at 2+ stories) vs the best of the rest, ${best}.`,
+      detail: `Biggest connected commercial cluster: ${metric(player)} units vs the best of the rest, ${best}.`,
     };
   }
 
@@ -668,5 +842,6 @@ export function scoreGame(state: GameState): GameResult {
 export function applyAction(state: GameState, action: Action): GameState {
   if (action.kind === 'build') return applyBuild(state, action.row, action.col, action.tileType);
   if (action.kind === 'stack') return applyStack(state, action.row, action.col);
+  if (action.kind === 'auction') return initiateAuction(state, action.row, action.col);
   return applyPass(state);
 }

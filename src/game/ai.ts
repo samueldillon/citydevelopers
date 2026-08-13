@@ -1,14 +1,21 @@
 import type { Action, GameState, PlayerId } from '../types';
-import { legalBuildActions, legalSetupSquares, legalStackActions, neighbors } from './engine';
-import { BOARD_SIZE, INCOME_PER_UNIT } from './constants';
+import {
+  eligibleAuctionPlacementSquares,
+  legalBuildActions,
+  legalSetupSquares,
+  legalStackActions,
+  neighbors,
+  playerState,
+} from './engine';
+import { INCOME_PER_UNIT, STACK_COST } from './constants';
 
 // Simple heuristic AI. Priority: always return a legal action. Beyond that,
 // prefer moves that grow income, and since every agenda is open to any
 // player now (not one dealt in secret), lean a little toward all four
 // agenda-friendly patterns at once rather than committing to just one.
 
-function isEdge(row: number, col: number): boolean {
-  return row === 0 || row === BOARD_SIZE - 1 || col === 0 || col === BOARD_SIZE - 1;
+function isEdge(row: number, col: number, size: number): boolean {
+  return row === 0 || row === size - 1 || col === 0 || col === size - 1;
 }
 
 export function chooseAiSetupSquare(state: GameState): [number, number] {
@@ -19,7 +26,9 @@ export function chooseAiSetupSquare(state: GameState): [number, number] {
   let best = options[0];
   let bestScore = -Infinity;
   for (const [r, c] of options) {
-    const openNeighbors = neighbors(r, c).filter(([nr, nc]) => state.board[nr][nc] === null).length;
+    const openNeighbors = neighbors(r, c, state.board.length).filter(
+      ([nr, nc]) => state.board[nr][nc] === null,
+    ).length;
     const score = openNeighbors + Math.random() * 0.1;
     if (score > bestScore) {
       bestScore = score;
@@ -39,15 +48,16 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
 
   type Scored = { score: number; action: Action };
   const candidates: Scored[] = [];
+  const size = state.board.length;
 
   for (const b of builds) {
     let score = INCOME_PER_UNIT[b.tileType] * 3 - b.cost;
 
     if (b.tileType === 'residential') score += 1; // land lord lean
-    if (b.tileType === 'residential' && isEdge(b.row, b.col)) score += 2; // suburbs lean
+    if (b.tileType === 'residential' && isEdge(b.row, b.col, size)) score += 2; // suburbs lean
     score += 0.75; // low rise lean: building new keeps tiles single-story
     if (b.tileType === 'commercial') {
-      const nextToOwnCommercial = neighbors(b.row, b.col).some(([nr, nc]) => {
+      const nextToOwnCommercial = neighbors(b.row, b.col, size).some(([nr, nc]) => {
         const cell = state.board[nr][nc];
         return cell && cell !== 'townhall' && cell.owner === player && cell.type === 'commercial';
       });
@@ -63,13 +73,57 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
 
     if (s.tileType === 'residential') score += 1; // land lord lean
     score -= 2.5; // low rise lean: stacking removes a tile from single-story count
-    if (s.tileType === 'residential' && isEdge(s.row, s.col)) score += 2; // suburbs lean
+    if (s.tileType === 'residential' && isEdge(s.row, s.col, size)) score += 2; // suburbs lean
     if (s.tileType === 'commercial' && s.nextStory === 2) score += 1.5; // helps qualify a CBD group
 
     score += Math.random() * 0.5;
-    candidates.push({ score, action: { kind: 'stack', row: s.row, col: s.col } });
+    // A 3rd floor is scarce enough to go to a blind auction rather than a
+    // flat stack — the AI treats "I'd like one" the same as a normal stack
+    // decision; the eventual price is settled by the auction, not here.
+    const action: Action =
+      s.nextStory === 3 ? { kind: 'auction', row: s.row, col: s.col } : { kind: 'stack', row: s.row, col: s.col };
+    candidates.push({ score, action });
   }
 
   candidates.sort((a, b) => b.score - a.score);
   return candidates[0].action;
+}
+
+// Bid a bit above the $3M floor, more so if it's the AI's own auction (it
+// wants the tile it just went looking for), scaled by how much spare cash it
+// has and a little randomness so bids aren't perfectly predictable.
+export function chooseAiBid(state: GameState, bidder: PlayerId): number {
+  const auction = state.auction!;
+  const cash = playerState(state, bidder).cash;
+  const floor = STACK_COST[3];
+  const isInitiator = auction.initiator === bidder;
+  const willingness = isInitiator ? 0.4 : 0.2;
+  const spare = Math.max(0, cash - floor);
+  const extra = Math.floor(spare * willingness * Math.random());
+  return Math.min(cash, floor + extra);
+}
+
+// When the AI wins an auction and owns more than one eligible tile of the
+// right type, prefer the one already surrounded by the most of its own
+// commercial tiles, to help build toward a Central Business District cluster.
+export function chooseAiAuctionPlacement(state: GameState): [number, number] {
+  const options = eligibleAuctionPlacementSquares(state);
+  if (options.length === 0) throw new Error('No eligible auction placement squares');
+  const auction = state.auction!;
+  if (auction.tileType !== 'commercial' || !auction.winner) return options[0];
+
+  const winner = auction.winner;
+  let best = options[0];
+  let bestScore = -1;
+  for (const [r, c] of options) {
+    const ownCommercialNeighbors = neighbors(r, c, state.board.length).filter(([nr, nc]) => {
+      const cell = state.board[nr][nc];
+      return cell && cell !== 'townhall' && cell.owner === winner && cell.type === 'commercial';
+    }).length;
+    if (ownCommercialNeighbors > bestScore) {
+      bestScore = ownCommercialNeighbors;
+      best = [r, c];
+    }
+  }
+  return best;
 }

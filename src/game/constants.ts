@@ -1,8 +1,10 @@
-import type { AgendaId, PlayerId, TileType } from '../types';
+import type { AgendaId, Pools, PlayerId, TileType } from '../types';
 
-export const BOARD_SIZE = 5;
-export const TOWN_HALL_ROW = 2;
-export const TOWN_HALL_COL = 2;
+// Board size is chosen per game: 2-player games are always the original
+// 5x5; 3-4 player games pick between two larger boards so there's more room
+// to develop with more players sharing the same city.
+export const BOARD_SIZE_2P = 5;
+export const BOARD_SIZE_OPTIONS_MULTIPLAYER: number[] = [7, 11];
 
 export const ALL_PLAYER_IDS: PlayerId[] = ['P1', 'P2', 'P3', 'P4'];
 export const MIN_PLAYERS = 2;
@@ -40,12 +42,27 @@ export const VP_PER_UNIT: Record<TileType, number> = {
 
 export const MAX_STORIES = 3;
 
-export const INITIAL_POOLS = {
+// Pool sizes tuned for the original 5x5 (24 buildable squares) board. Larger
+// boards scale these proportionally to buildable-square count so scarcity
+// stays meaningful instead of becoming trivially abundant.
+export const INITIAL_POOLS: Pools = {
   res2: 8,
   com2: 8,
   res3: 4,
   com3: 4,
 };
+
+export function poolsForBoardSize(size: number): Pools {
+  const buildable = size * size - 1;
+  const baseBuildable = BOARD_SIZE_2P * BOARD_SIZE_2P - 1;
+  const scale = buildable / baseBuildable;
+  return {
+    res2: Math.round(INITIAL_POOLS.res2 * scale),
+    com2: Math.round(INITIAL_POOLS.com2 * scale),
+    res3: Math.round(INITIAL_POOLS.res3 * scale),
+    com3: Math.round(INITIAL_POOLS.com3 * scale),
+  };
+}
 
 export const ALL_AGENDAS: AgendaId[] = ['landlord', 'cbd', 'lowrise', 'suburbs'];
 
@@ -61,7 +78,7 @@ export const AGENDA_INFO: Record<AgendaId, { name: string; description: string; 
   cbd: {
     name: 'Central Business District',
     description:
-      'Own the largest connected group of your own orthogonally-adjoining commercial tiles, including at least two tiles in that group at 2+ stories.',
+      'Own the biggest connected cluster of your own orthogonally-adjoining commercial tiles, scored by total commercial units (stories) in that cluster.',
     vp: 3,
   },
   lowrise: {

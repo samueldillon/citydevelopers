@@ -1,5 +1,4 @@
 import type { Cell, GameState, PlayerId } from '../types';
-import { BOARD_SIZE } from '../game/constants';
 
 interface Props {
   state: GameState;
@@ -35,12 +34,19 @@ function cellContent(cell: Cell) {
   );
 }
 
+function sizeClass(size: number): string {
+  if (size >= 11) return 'board-xl';
+  if (size >= 7) return 'board-lg';
+  return '';
+}
+
 export default function Board({ state, legalSquares, stackableSquares, selectedCell, interactive, onCellClick }: Props) {
+  const size = state.board.length;
   return (
-    <div className="board" role="grid" aria-label="City Developers board">
-      {Array.from({ length: BOARD_SIZE }, (_, r) => (
+    <div className={`board ${sizeClass(size)}`} role="grid" aria-label="City Developers board">
+      {Array.from({ length: size }, (_, r) => (
         <div className="board-row" role="row" key={r}>
-          {Array.from({ length: BOARD_SIZE }, (_, c) => {
+          {Array.from({ length: size }, (_, c) => {
             const cell = state.board[r][c];
             const k = key(r, c);
             const isLegalBuild = legalSquares.has(k);

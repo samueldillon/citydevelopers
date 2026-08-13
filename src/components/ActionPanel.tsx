@@ -12,12 +12,22 @@ interface Props {
   selectedCell: [number, number] | null;
   onBuild: (tileType: TileType) => void;
   onStack: () => void;
+  onStartAuction: () => void;
   onCancel: () => void;
   onPass: () => void;
   canPass: boolean;
 }
 
-export default function ActionPanel({ state, selectedCell, onBuild, onStack, onCancel, onPass, canPass }: Props) {
+export default function ActionPanel({
+  state,
+  selectedCell,
+  onBuild,
+  onStack,
+  onStartAuction,
+  onCancel,
+  onPass,
+  canPass,
+}: Props) {
   const player = state.currentPlayer;
   const cash = playerState(state, player).cash;
 
@@ -74,11 +84,13 @@ export default function ActionPanel({ state, selectedCell, onBuild, onStack, onC
         <p className="hint">
           Your {cell.type} tile at ({row + 1}, {col + 1}) — {cell.stories} {cell.stories === 1 ? 'story' : 'stories'}
         </p>
-        {stack ? (
-          <button onClick={onStack}>
-            Add {stack.nextStory === 2 ? '2nd' : '3rd'} floor — ${stack.cost}M
-          </button>
-        ) : (
+        {stack && stack.nextStory === 2 && (
+          <button onClick={onStack}>Add 2nd floor — ${stack.cost}M</button>
+        )}
+        {stack && stack.nextStory === 3 && (
+          <button onClick={onStartAuction}>Start blind auction for 3rd floor — min ${stack.cost}M</button>
+        )}
+        {!stack && (
           <p className="warn">
             {cell.stories >= 3 ? 'Already at max height.' : 'Cannot afford, or the matching floor pool is empty.'}
           </p>

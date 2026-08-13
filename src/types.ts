@@ -2,7 +2,7 @@ export type PlayerId = 'P1' | 'P2' | 'P3' | 'P4';
 export type TileType = 'residential' | 'commercial';
 export type PlayerKind = 'human' | 'ai';
 export type AgendaId = 'landlord' | 'cbd' | 'lowrise' | 'suburbs';
-export type GamePhase = 'setup' | 'playing' | 'ended';
+export type GamePhase = 'setup' | 'playing' | 'auction' | 'ended';
 
 export interface BuiltTile {
   type: TileType;
@@ -59,6 +59,22 @@ export interface GameResult {
   reason: string;
 }
 
+// Wanting a 3rd floor triggers a blind auction instead of a flat price.
+// Eligible bidders (own eligible tile of that type + can afford the floor)
+// submit sealed bids in turn order starting at the initiator; the winner
+// pays their bid and immediately places it on one of their own eligible
+// tiles.
+export interface AuctionState {
+  tileType: TileType;
+  initiator: PlayerId;
+  eligibleBidders: PlayerId[];
+  bids: Partial<Record<PlayerId, number>>;
+  nextBidderIndex: number;
+  stage: 'bidding' | 'placing';
+  winner?: PlayerId;
+  winningBid?: number;
+}
+
 export interface GameState {
   // Active players for this game, 2-4 entries, in turn order (already
   // randomized at creation — this doubles as both the setup placement order
@@ -75,10 +91,12 @@ export interface GameState {
   buildsExecuted: number;
   log: string[];
   result?: GameResult;
+  auction?: AuctionState;
 }
 
 export type BuildAction = { kind: 'build'; row: number; col: number; tileType: TileType };
 export type StackAction = { kind: 'stack'; row: number; col: number };
 export type PassAction = { kind: 'pass' };
+export type AuctionAction = { kind: 'auction'; row: number; col: number };
 export type SetupAction = { kind: 'setupPlace'; row: number; col: number };
-export type Action = BuildAction | StackAction | PassAction;
+export type Action = BuildAction | StackAction | PassAction | AuctionAction;

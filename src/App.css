@@ -125,6 +125,51 @@ dd {
   aspect-ratio: 1 / 1;
 }
 
+.board.board-lg {
+  width: min(92vw, 620px);
+}
+
+.board.board-xl {
+  width: min(95vw, 800px);
+}
+
+.board-lg .tile-type {
+  font-size: 14px;
+}
+
+.board-lg .story-badge {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  bottom: -4px;
+  right: -4px;
+}
+
+.board-lg .cell-inner.townhall {
+  font-size: 8px;
+}
+
+.board-xl .tile-type {
+  font-size: 10px;
+}
+
+.board-xl .story-badge {
+  width: 12px;
+  height: 12px;
+  font-size: 8px;
+  bottom: -2px;
+  right: -2px;
+  border-width: 1px;
+}
+
+.board-xl .cell-inner.townhall {
+  font-size: 6px;
+}
+
+.board-xl .cell-inner {
+  border-width: 1px;
+}
+
 .board-row {
   display: flex;
   flex: 1;
@@ -269,6 +314,27 @@ dd {
 .hint {
   margin: 0;
   font-size: 14px;
+}
+
+.auction-panel {
+  border-color: var(--townhall);
+}
+
+.bid-input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.bid-input-row input {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .rules-summary {
