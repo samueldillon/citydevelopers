@@ -166,7 +166,10 @@ export default function App() {
                 stack a residential tile to free up capacity before building commercial.
               </li>
               <li>Stack: 2nd floor $2M, 3rd floor $3M, matching type, drawn from the shared pool.</li>
-              <li>Income each turn: $1M per residential unit + $2M per commercial unit you own.</li>
+              <li>
+                Income: at the end of your own turn (build, stack, or pass), you collect $1M per residential
+                unit + $2M per commercial unit you own — not on other players' turns.
+              </li>
               <li>Game ends when the board is completely full, or every player passes in a row.</li>
               <li>Scoring: 1 VP/residential unit, 2 VP/commercial unit, plus your secret agenda bonus.</li>
               <ul>

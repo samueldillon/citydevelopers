@@ -305,21 +305,21 @@ export function hasAnyLegalAction(state: GameState, player: PlayerId): boolean {
 
 // ---------- applying actions ----------
 
+// Only the player who just took a turn (build, stack, or pass) collects
+// income for it — not every other player too.
 function collectIncome(state: GameState): GameState {
-  const players = { ...state.players };
-  state.playerOrder.forEach((p) => {
-    let income = 0;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        const cell = state.board[r][c];
-        if (cell && cell !== 'townhall' && cell.owner === p) {
-          income += INCOME_PER_UNIT[cell.type] * cell.stories;
-        }
+  const player = state.currentPlayer;
+  let income = 0;
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const cell = state.board[r][c];
+      if (cell && cell !== 'townhall' && cell.owner === player) {
+        income += INCOME_PER_UNIT[cell.type] * cell.stories;
       }
     }
-    const ps = playerState(state, p);
-    players[p] = { ...ps, cash: ps.cash + income };
-  });
+  }
+  const ps = playerState(state, player);
+  const players = { ...state.players, [player]: { ...ps, cash: ps.cash + income } };
   return { ...state, players };
 }
 
