@@ -60,12 +60,22 @@ export function neighbors(row: number, col: number): Array<[number, number]> {
     .filter(([r, c]) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE);
 }
 
-export function isAdjacentToAnyTile(board: Cell[][], row: number, col: number): boolean {
-  return neighbors(row, col).some(([r, c]) => board[r][c] !== null);
-}
-
 export function isAdjacentToTownHall(row: number, col: number): boolean {
   return neighbors(row, col).some(([r, c]) => r === TOWN_HALL_ROW && c === TOWN_HALL_COL);
+}
+
+export function isAdjacentToOwnTile(board: Cell[][], row: number, col: number, player: PlayerId): boolean {
+  return neighbors(row, col).some(([r, c]) => {
+    const cell = board[r][c];
+    return cell !== null && cell !== 'townhall' && cell.owner === player;
+  });
+}
+
+// A player may only build adjacent to Town Hall or a tile they already own —
+// their development has to grow out from their own footprint, not piggyback
+// on the opponent's.
+export function isAdjacentToOwnOrTownHall(board: Cell[][], row: number, col: number, player: PlayerId): boolean {
+  return isAdjacentToTownHall(row, col) || isAdjacentToOwnTile(board, row, col, player);
 }
 
 // ---------- setup ----------
@@ -128,7 +138,7 @@ export function legalSetupSquares(state: GameState): Array<[number, number]> {
       if (stepDef.rule === 'townhall') {
         if (isAdjacentToTownHall(r, c)) result.push([r, c]);
       } else {
-        if (isAdjacentToAnyTile(state.board, r, c)) result.push([r, c]);
+        if (isAdjacentToOwnOrTownHall(state.board, r, c, stepDef.player)) result.push([r, c]);
       }
     }
   }
@@ -173,11 +183,11 @@ export function placeSetupTile(state: GameState, row: number, col: number): Game
 
 // ---------- legal actions during play ----------
 
-export function emptyAdjacencyLegalSquares(board: Cell[][]): Array<[number, number]> {
+export function emptyAdjacencyLegalSquares(board: Cell[][], player: PlayerId): Array<[number, number]> {
   const result: Array<[number, number]> = [];
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
-      if (board[r][c] === null && isAdjacentToAnyTile(board, r, c)) {
+      if (board[r][c] === null && isAdjacentToOwnOrTownHall(board, r, c, player)) {
         result.push([r, c]);
       }
     }
@@ -202,7 +212,7 @@ export function residentialCapacitySurplus(board: Cell[][], player: PlayerId): n
 }
 
 export function legalBuildActions(state: GameState, player: PlayerId): LegalBuild[] {
-  const squares = emptyAdjacencyLegalSquares(state.board);
+  const squares = emptyAdjacencyLegalSquares(state.board, player);
   const cash = state.players[player].cash;
   const hasResidentialCapacity = residentialCapacitySurplus(state.board, player) >= 1;
   const result: LegalBuild[] = [];

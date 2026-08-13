@@ -108,7 +108,7 @@ export default function App() {
   const stepText =
     state.phase === 'setup'
       ? `Setup — ${currentLabel} places a residential tile ${
-          state.setupStep < 2 ? 'adjacent to Town Hall' : 'adjacent to any existing tile'
+          state.setupStep < 2 ? 'adjacent to Town Hall' : 'adjacent to Town Hall or their own tile'
         }.`
       : state.phase === 'playing'
         ? `${currentLabel}'s turn`
@@ -149,7 +149,10 @@ export default function App() {
           <details className="rules-summary">
             <summary>Quick rules reference</summary>
             <ul>
-              <li>Build: Residential $1M / Commercial $2M, must be adjacent to an existing tile.</li>
+              <li>
+                Build: Residential $1M / Commercial $2M, must be adjacent to Town Hall or one of your own tiles —
+                you can't piggyback on your opponent's development.
+              </li>
               <li>
                 Every tile you own needs a resident behind it: your total residential units (stories) must cover
                 your total tile count. Residential builds are self-covering, so this only ever gates commercial —

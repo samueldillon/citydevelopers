@@ -19,8 +19,8 @@ Then open the printed local URL. `npm run build` produces a static production bu
 ## Rules implemented
 
 - 5x5 board, permanent neutral Town Hall at center.
-- Setup: each player places 2 free residential tiles (P1's first tile adjacent to Town Hall, P2's first tile adjacent to Town Hall, then each player's second tile adjacent to any existing tile), then is dealt one hidden secret agenda.
-- Every subsequent build must be orthogonally adjacent to an existing tile.
+- Setup: each player places 2 free residential tiles (each player's first tile adjacent to Town Hall, then each player's second tile adjacent to Town Hall or their own first tile), then is dealt one hidden secret agenda.
+- Every build must be orthogonally adjacent to Town Hall or a tile that player already owns — you can only grow your own footprint, not build off an opponent's tiles.
 - One action per turn: build (Residential $1M / Commercial $2M), stack a floor on your own tile (2nd floor $2M, 3rd floor $3M, drawn from a shared, type-specific pool: 8/8 for 2nd floor, 4/4 for 3rd floor), or pass.
 - Residential capacity: every tile you own needs a resident behind it. Your total residential units (stories) must be at least your total tile count (residential + commercial squares owned). Residential builds are self-covering (they add one unit and one tile at once), so this only ever gates commercial — you need spare residential capacity, typically from stacking, before building a new commercial tile.
 - Income collected at the end of every turn: $1M per residential unit + $2M per commercial unit owned.

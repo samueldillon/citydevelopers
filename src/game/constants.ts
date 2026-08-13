@@ -38,8 +38,8 @@ export const INITIAL_POOLS = {
 export const SETUP_SEQUENCE: SetupStepDef[] = [
   { player: 'P1', rule: 'townhall' },
   { player: 'P2', rule: 'townhall' },
-  { player: 'P1', rule: 'any' },
-  { player: 'P2', rule: 'any' },
+  { player: 'P1', rule: 'ownOrTownHall' },
+  { player: 'P2', rule: 'ownOrTownHall' },
 ];
 
 export const ALL_AGENDAS: AgendaId[] = ['landlord', 'cbd', 'lowrise', 'suburbs'];

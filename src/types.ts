@@ -29,7 +29,7 @@ export interface PlayerState {
 
 export interface SetupStepDef {
   player: PlayerId;
-  rule: 'townhall' | 'any';
+  rule: 'townhall' | 'ownOrTownHall';
 }
 
 export interface AgendaResult {
