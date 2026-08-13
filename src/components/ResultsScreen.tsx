@@ -1,6 +1,10 @@
 import type { GameState, PlayerId } from '../types';
 import { playerState } from '../game/engine';
 import { AGENDA_INFO } from '../game/constants';
+import Board from './Board';
+
+const EMPTY_SET = new Set<string>();
+const NOOP = () => {};
 
 interface Props {
   state: GameState;
@@ -50,6 +54,26 @@ export default function ResultsScreen({ state, onRestart }: Props) {
     <div className="results-screen">
       <h1>{headline}</h1>
       <p className="reason">{result.reason}</p>
+
+      <div className="results-board-column">
+        <Board
+          state={state}
+          legalSquares={EMPTY_SET}
+          stackableSquares={EMPTY_SET}
+          selectedCell={null}
+          interactive={false}
+          onCellClick={NOOP}
+        />
+        <div className="legend">
+          {state.playerOrder.map((player) => (
+            <span key={player} className="legend-item">
+              <span className={`legend-swatch owner-${player.toLowerCase()}-accent`} />
+              {playerState(state, player).label}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="score-cards">
         {state.playerOrder.map((player) => (
           <ScoreCard key={player} state={state} player={player} />
