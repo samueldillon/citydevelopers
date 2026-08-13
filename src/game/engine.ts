@@ -21,6 +21,8 @@ import {
   INCOME_PER_UNIT,
   INITIAL_POOLS,
   MAX_STORIES,
+  PRICE_TIER_BUILDS,
+  PRICE_TIER_INCREMENT,
   SETUP_SEQUENCE,
   STACK_COST,
   STARTING_CASH,
@@ -123,6 +125,7 @@ export function createInitialState(mode: GameMode): GameState {
     setupStep: 0,
     passStreak: 0,
     turnNumber: 0,
+    buildsExecuted: 0,
     log: ['Player 1 won the coin flip and places first.'],
   };
 }
@@ -211,6 +214,18 @@ export function residentialCapacitySurplus(board: Cell[][], player: PlayerId): n
   return residentialUnits(board, player) - occupiedTiles(board, player);
 }
 
+// New-build prices climb with the pace of the game: every PRICE_TIER_BUILDS new
+// builds (either type, either player) bumps both types' price by
+// PRICE_TIER_INCREMENT. Sized to the player count, so each tier gives every
+// player an equal shot at it regardless of turn order. Stacking is unaffected.
+export function currentBuildPriceTier(state: GameState): number {
+  return Math.floor(state.buildsExecuted / PRICE_TIER_BUILDS);
+}
+
+export function currentBuildCost(state: GameState, tileType: TileType): number {
+  return BUILD_COST[tileType] + currentBuildPriceTier(state) * PRICE_TIER_INCREMENT;
+}
+
 export function legalBuildActions(state: GameState, player: PlayerId): LegalBuild[] {
   const squares = emptyAdjacencyLegalSquares(state.board, player);
   const cash = state.players[player].cash;
@@ -218,7 +233,7 @@ export function legalBuildActions(state: GameState, player: PlayerId): LegalBuil
   const result: LegalBuild[] = [];
   for (const [r, c] of squares) {
     (['residential', 'commercial'] as TileType[]).forEach((tileType) => {
-      const cost = BUILD_COST[tileType];
+      const cost = currentBuildCost(state, tileType);
       if (cash < cost) return;
       if (tileType === 'commercial' && !hasResidentialCapacity) return;
       result.push({ row: r, col: c, tileType, cost });
@@ -306,21 +321,23 @@ export function applyBuild(state: GameState, row: number, col: number, tileType:
   );
   if (!legal) throw new Error('Illegal build action');
 
+  const cost = currentBuildCost(state, tileType);
   const board = cloneBoard(state.board);
   const tile: BuiltTile = { type: tileType, owner: player, stories: 1 };
   board[row][col] = tile;
 
   const players = { ...state.players };
-  players[player] = { ...players[player], cash: players[player].cash - BUILD_COST[tileType] };
+  players[player] = { ...players[player], cash: players[player].cash - cost };
 
   let next: GameState = {
     ...state,
     board,
     players,
     passStreak: 0,
+    buildsExecuted: state.buildsExecuted + 1,
     log: [
       ...state.log,
-      `${state.players[player].label} builds ${tileType} at (${row + 1}, ${col + 1}).`,
+      `${state.players[player].label} builds ${tileType} at (${row + 1}, ${col + 1}) for $${cost}M.`,
     ],
   };
   next = collectIncome(next);

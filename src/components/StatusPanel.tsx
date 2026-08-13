@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { GameState, PlayerId } from '../types';
-import { commercialUnits, residentialUnits } from '../game/engine';
+import { commercialUnits, currentBuildCost, residentialUnits } from '../game/engine';
 import { AGENDA_INFO } from '../game/constants';
 
 interface Props {
@@ -69,6 +69,16 @@ export default function StatusPanel({ state }: Props) {
           <dt>3F Commercial</dt>
           <dd>{state.pools.com3}</dd>
         </dl>
+      </div>
+      <div className="pools-card">
+        <h3>Current build price</h3>
+        <dl>
+          <dt>Residential</dt>
+          <dd>${currentBuildCost(state, 'residential')}M</dd>
+          <dt>Commercial</dt>
+          <dd>${currentBuildCost(state, 'commercial')}M</dd>
+        </dl>
+        <p className="agenda-detail">Rises $1M every 2 new builds (either type, either player).</p>
       </div>
     </div>
   );

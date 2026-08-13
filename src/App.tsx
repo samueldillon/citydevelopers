@@ -150,8 +150,12 @@ export default function App() {
             <summary>Quick rules reference</summary>
             <ul>
               <li>
-                Build: Residential $1M / Commercial $2M, must be adjacent to Town Hall or one of your own tiles —
-                you can't piggyback on your opponent's development.
+                Build: Residential $1M / Commercial $2M base price, must be adjacent to Town Hall or one of your
+                own tiles — you can't piggyback on your opponent's development.
+              </li>
+              <li>
+                New-build prices rise as the game goes: every 2 new builds (either type, either player) adds $1M
+                to both types' price, for the rest of the game. Stacking costs stay fixed.
               </li>
               <li>
                 Every tile you own needs a resident behind it: your total residential units (stories) must cover

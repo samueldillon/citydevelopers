@@ -64,6 +64,7 @@ export interface GameState {
   setupStep: number;
   passStreak: number;
   turnNumber: number;
+  buildsExecuted: number;
   log: string[];
   result?: GameResult;
 }

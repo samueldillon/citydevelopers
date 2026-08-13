@@ -11,6 +11,14 @@ export const BUILD_COST: Record<TileType, number> = {
   commercial: 2,
 };
 
+// New-build prices escalate as the game goes on: every PRICE_TIER_BUILDS new
+// builds (of either type, combined) raises the price by PRICE_TIER_INCREMENT
+// for both types. Sized to the player count so every price tier gives each
+// player an equal shot at it, uncapped for the whole game. Stacking costs are
+// unaffected — this only targets the pace of new-tile expansion.
+export const PRICE_TIER_BUILDS = 2;
+export const PRICE_TIER_INCREMENT = 1;
+
 export const STACK_COST: Record<2 | 3, number> = {
   2: 2,
   3: 3,
