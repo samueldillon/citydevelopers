@@ -1,4 +1,5 @@
 import type { Cell, GameState, PlayerId } from '../types';
+import { residentialRentMultiplier } from '../game/engine';
 
 interface Props {
   state: GameState;
@@ -23,7 +24,7 @@ const TILE_LETTER: Record<string, string> = {
   park: 'P',
 };
 
-function cellContent(cell: Cell) {
+function cellContent(cell: Cell, board: Cell[][], row: number, col: number) {
   if (cell === 'townhall') {
     return (
       <div className="cell-inner townhall">
@@ -32,10 +33,12 @@ function cellContent(cell: Cell) {
     );
   }
   if (cell === null) return null;
+  const rentMult = cell.type === 'residential' ? residentialRentMultiplier(board, row, col) : 1;
   return (
     <div className={`cell-inner ${ownerClass(cell.owner)} type-${cell.type}`}>
       <span className="tile-type">{TILE_LETTER[cell.type]}</span>
       {cell.type !== 'park' && <span className="story-badge">{cell.stories}</span>}
+      {rentMult !== 1 && <span className="rent-badge">×{rentMult}</span>}
     </div>
   );
 }
@@ -76,7 +79,7 @@ export default function Board({ state, legalSquares, stackableSquares, selectedC
                 disabled={!interactive || (!isLegalBuild && !isStackable)}
                 aria-label={`Row ${r + 1}, Column ${c + 1}`}
               >
-                {cellContent(cell)}
+                {cellContent(cell, state.board, r, c)}
               </button>
             );
           })}

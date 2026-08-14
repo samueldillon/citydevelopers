@@ -275,6 +275,12 @@ export default function App() {
                 Income: at the end of your own turn (build, stack, pass, or an auction you started), you collect
                 $1M per residential unit + $2M per commercial unit you own — not on other players' turns.
               </li>
+              <li>
+                Residential rent is doubled for every park orthogonally adjacent to it, and halved for every
+                adjacent commercial tile — regardless of who owns the neighbor. These stack (two adjacent parks
+                = 4x) and cancel out if both are present (park + commercial = back to normal), rounded down to
+                the nearest $M. Watch for the ×N badge on affected tiles.
+              </li>
               <li>Game ends when the board is completely full, or every player passes in a row.</li>
               <li>
                 Scoring: 1 VP/residential unit, 2 VP/commercial unit, 5 VP/park, plus a bonus for every agenda

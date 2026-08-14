@@ -326,6 +326,24 @@ export function hasAnyLegalAction(state: GameState, player: PlayerId): boolean {
 
 // ---------- applying actions ----------
 
+// A residential tile's rent is doubled for every orthogonally adjacent park
+// (any owner) and halved for every adjacent commercial tile (any owner) —
+// proximity affects property value regardless of who built the neighbor.
+// Multipliers stack across all neighbors (two parks = 4x), and a park next
+// to a commercial cancels out (2x * 0.5x = 1x). Only residential is affected
+// — commercial and park income are unaffected by their neighbors.
+export function residentialRentMultiplier(board: Cell[][], row: number, col: number): number {
+  const size = board.length;
+  let mult = 1;
+  for (const [nr, nc] of neighbors(row, col, size)) {
+    const n = board[nr][nc];
+    if (!n || n === 'townhall') continue;
+    if (n.type === 'park') mult *= 2;
+    else if (n.type === 'commercial') mult *= 0.5;
+  }
+  return mult;
+}
+
 // Only the player who just took a turn (build, stack, or pass) collects
 // income for it — not every other player too.
 function collectIncome(state: GameState): GameState {
@@ -336,7 +354,13 @@ function collectIncome(state: GameState): GameState {
     for (let c = 0; c < size; c++) {
       const cell = state.board[r][c];
       if (cell && cell !== 'townhall' && cell.owner === player) {
-        income += INCOME_PER_UNIT[cell.type] * cell.stories;
+        const base = INCOME_PER_UNIT[cell.type] * cell.stories;
+        // The rent modifier applies per-story (it scales the tile's whole
+        // stories-based income), floored to the nearest whole dollar since
+        // the economy deals only in integer millions.
+        const tileIncome =
+          cell.type === 'residential' ? Math.floor(base * residentialRentMultiplier(state.board, r, c)) : base;
+        income += tileIncome;
       }
     }
   }
@@ -660,10 +684,11 @@ export function parkUnits(board: Cell[][], player: PlayerId): number {
   return total;
 }
 
-// Largest connected cluster of a player's own commercial tiles, scored by
-// total commercial units (stories) in that cluster — not raw tile count, so
-// stacking within a cluster helps win it too.
-function largestOwnedCommercialClusterUnits(board: Cell[][], player: PlayerId): number {
+// Largest connected cluster of a player's own tiles of one type, scored by
+// total units (stories) in that cluster — not raw tile count, so stacking
+// within a cluster helps win it too (parks are always 1 story, so this is
+// just tile count for them).
+function largestOwnedClusterUnits(board: Cell[][], player: PlayerId, tileType: TileType): number {
   const size = board.length;
   const visited = Array.from({ length: size }, () => Array(size).fill(false));
   let best = 0;
@@ -672,9 +697,9 @@ function largestOwnedCommercialClusterUnits(board: Cell[][], player: PlayerId): 
     for (let c = 0; c < size; c++) {
       const cell = board[r][c];
       if (visited[r][c] || !cell || cell === 'townhall') continue;
-      if (cell.type !== 'commercial' || cell.owner !== player) continue;
+      if (cell.type !== tileType || cell.owner !== player) continue;
 
-      // flood fill this cluster (only through this player's own commercial tiles)
+      // flood fill this cluster (only through this player's own tiles of this type)
       const stack: Array<[number, number]> = [[r, c]];
       visited[r][c] = true;
       let units = 0;
@@ -685,7 +710,7 @@ function largestOwnedCommercialClusterUnits(board: Cell[][], player: PlayerId): 
         for (const [nr, nc] of neighbors(cr, cc, size)) {
           if (visited[nr][nc]) continue;
           const ncell = board[nr][nc];
-          if (ncell && ncell !== 'townhall' && ncell.type === 'commercial' && ncell.owner === player) {
+          if (ncell && ncell !== 'townhall' && ncell.type === tileType && ncell.owner === player) {
             visited[nr][nc] = true;
             stack.push([nr, nc]);
           }
@@ -774,7 +799,7 @@ function evaluateAgenda(state: GameState, player: PlayerId, agenda: AgendaId): A
   }
 
   if (agenda === 'cbd') {
-    const metric = (p: PlayerId) => largestOwnedCommercialClusterUnits(state.board, p);
+    const metric = (p: PlayerId) => largestOwnedClusterUnits(state.board, p, 'commercial');
     const winner = determineAgendaWinner(state, metric, () => true);
     const met = winner === player;
     const best = bestOtherValue(state.playerOrder, player, metric);
@@ -783,6 +808,19 @@ function evaluateAgenda(state: GameState, player: PlayerId, agenda: AgendaId): A
       met,
       vp: met ? info.vp : 0,
       detail: `Biggest connected commercial cluster: ${metric(player)} units vs the best of the rest, ${best}.`,
+    };
+  }
+
+  if (agenda === 'urbanjungle') {
+    const metric = (p: PlayerId) => largestOwnedClusterUnits(state.board, p, 'park');
+    const winner = determineAgendaWinner(state, metric, () => true);
+    const met = winner === player;
+    const best = bestOtherValue(state.playerOrder, player, metric);
+    return {
+      agenda,
+      met,
+      vp: met ? info.vp : 0,
+      detail: `Biggest connected park cluster: ${metric(player)} parks vs the best of the rest, ${best}.`,
     };
   }
 

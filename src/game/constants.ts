@@ -89,7 +89,7 @@ export function priceTierBuilds(size: number, playerCount: number): number {
   return Math.max(1, Math.round(playerCount * boardScale(size)));
 }
 
-export const ALL_AGENDAS: AgendaId[] = ['landlord', 'cbd', 'lowrise', 'suburbs'];
+export const ALL_AGENDAS: AgendaId[] = ['landlord', 'cbd', 'lowrise', 'suburbs', 'urbanjungle'];
 
 // Every agenda has exactly one winner (no ties): whoever's highest wins;
 // a tie is broken by cash on hand, then by turn order, so someone always
@@ -117,5 +117,11 @@ export const AGENDA_INFO: Record<AgendaId, { name: string; description: string; 
     description:
       'Own 3 or more residential units on edge squares (the 16 border squares) at game end — most among qualifying players wins.',
     vp: 2,
+  },
+  urbanjungle: {
+    name: 'Urban Jungle',
+    description:
+      'Own the biggest connected cluster of your own orthogonally-adjoining park tiles at game end.',
+    vp: 3,
   },
 };

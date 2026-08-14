@@ -270,6 +270,37 @@ dd {
   justify-content: center;
 }
 
+.rent-badge {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  background: #fff;
+  border: 2px solid currentColor;
+  border-radius: 8px;
+  padding: 0 3px;
+  height: 16px;
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.board-lg .rent-badge {
+  height: 13px;
+  font-size: 8px;
+  top: -4px;
+  left: -4px;
+}
+
+.board-xl .rent-badge {
+  height: 10px;
+  font-size: 6px;
+  top: -2px;
+  left: -2px;
+  border-width: 1px;
+}
+
 .ai-thinking {
   font-style: italic;
   color: var(--text-muted);

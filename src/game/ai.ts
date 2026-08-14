@@ -6,6 +6,7 @@ import {
   legalStackActions,
   neighbors,
   playerState,
+  residentialRentMultiplier,
 } from './engine';
 import { INCOME_PER_UNIT, STACK_COST, VP_PER_UNIT } from './constants';
 
@@ -53,7 +54,11 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
   for (const b of builds) {
     // Income drives most of the scoring, but parks earn no income at all —
     // this VP term is what gives the AI a reason to ever build one.
-    let score = INCOME_PER_UNIT[b.tileType] * 3 - b.cost + VP_PER_UNIT[b.tileType] * 0.8;
+    // Residential income is also shaped by adjacent parks/commercial, so
+    // factor that multiplier in — a spot next to a park is worth chasing,
+    // a spot next to commercial is worth avoiding.
+    const rentMult = b.tileType === 'residential' ? residentialRentMultiplier(state.board, b.row, b.col) : 1;
+    let score = INCOME_PER_UNIT[b.tileType] * rentMult * 3 - b.cost + VP_PER_UNIT[b.tileType] * 0.8;
 
     if (b.tileType === 'residential') score += 1; // land lord lean
     if (b.tileType === 'residential' && isEdge(b.row, b.col, size)) score += 2; // suburbs lean
@@ -71,7 +76,8 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
   }
 
   for (const s of stacks) {
-    let score = INCOME_PER_UNIT[s.tileType] * 3 - s.cost;
+    const rentMult = s.tileType === 'residential' ? residentialRentMultiplier(state.board, s.row, s.col) : 1;
+    let score = INCOME_PER_UNIT[s.tileType] * rentMult * 3 - s.cost;
 
     if (s.tileType === 'residential') score += 1; // land lord lean
     score -= 2.5; // low rise lean: stacking removes a tile from single-story count
