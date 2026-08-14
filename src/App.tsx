@@ -284,9 +284,9 @@ export default function App() {
               <li>Game ends when the board is completely full, or every player passes in a row.</li>
               <li>
                 Scoring: 1 VP/residential unit, 2 VP/commercial unit, 5 VP/park, plus a bonus for every agenda
-                below you win at game end — they're open to any player, and one player can win several at once. Each
-                agenda has exactly one winner (whoever's highest on its metric); ties break on cash on hand,
-                then turn order. Live progress toward each shows on your player card as you play.
+                below you win at game end — they're open to any player, and one player can win several at once.
+                Each agenda goes to whoever's highest on its metric — but a tie for the top spot means nobody
+                scores that agenda this game. Live progress toward each shows on your player card as you play.
               </li>
               <ul>
                 {Object.values(AGENDA_INFO).map((a) => (

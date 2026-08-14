@@ -755,6 +755,10 @@ function suburbsUnits(board: Cell[][], player: PlayerId): number {
 // qualifies; Low Rise and Suburbs still gate on their numeric floor), the
 // highest metric wins. A tie is broken by cash on hand, then by turn order,
 // so there is always exactly one winner once at least one player qualifies.
+// A tie for the top spot means nobody wins the agenda — no cash or
+// turn-order tiebreak. (This also means an agenda nobody has any progress
+// on at all — e.g. Urban Jungle with zero parks on the board — naturally
+// resolves to no winner, since everyone's tied at zero.)
 function determineAgendaWinner(
   state: GameState,
   metric: (p: PlayerId) => number,
@@ -765,13 +769,7 @@ function determineAgendaWinner(
 
   const maxValue = Math.max(...qualified.map(metric));
   const leaders = qualified.filter((p) => metric(p) === maxValue);
-  if (leaders.length === 1) return leaders[0];
-
-  const maxCash = Math.max(...leaders.map((p) => playerState(state, p).cash));
-  const cashLeaders = leaders.filter((p) => playerState(state, p).cash === maxCash);
-  if (cashLeaders.length === 1) return cashLeaders[0];
-
-  return state.playerOrder.find((p) => cashLeaders.includes(p))!;
+  return leaders.length === 1 ? leaders[0] : null;
 }
 
 function bestOtherValue(playerOrder: PlayerId[], player: PlayerId, metric: (p: PlayerId) => number): number {
