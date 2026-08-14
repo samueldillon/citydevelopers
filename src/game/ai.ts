@@ -7,7 +7,7 @@ import {
   neighbors,
   playerState,
 } from './engine';
-import { INCOME_PER_UNIT, STACK_COST } from './constants';
+import { INCOME_PER_UNIT, STACK_COST, VP_PER_UNIT } from './constants';
 
 // Simple heuristic AI. Priority: always return a legal action. Beyond that,
 // prefer moves that grow income, and since every agenda is open to any
@@ -51,7 +51,9 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
   const size = state.board.length;
 
   for (const b of builds) {
-    let score = INCOME_PER_UNIT[b.tileType] * 3 - b.cost;
+    // Income drives most of the scoring, but parks earn no income at all —
+    // this VP term is what gives the AI a reason to ever build one.
+    let score = INCOME_PER_UNIT[b.tileType] * 3 - b.cost + VP_PER_UNIT[b.tileType] * 0.8;
 
     if (b.tileType === 'residential') score += 1; // land lord lean
     if (b.tileType === 'residential' && isEdge(b.row, b.col, size)) score += 2; // suburbs lean

@@ -1,5 +1,5 @@
 export type PlayerId = 'P1' | 'P2' | 'P3' | 'P4';
-export type TileType = 'residential' | 'commercial';
+export type TileType = 'residential' | 'commercial' | 'park';
 export type PlayerKind = 'human' | 'ai';
 export type AgendaId = 'landlord' | 'cbd' | 'lowrise' | 'suburbs';
 export type GamePhase = 'setup' | 'playing' | 'auction' | 'ended';
@@ -46,6 +46,7 @@ export interface AgendaResult {
 export interface ScoreBreakdown {
   residentialUnits: number;
   commercialUnits: number;
+  parkUnits: number;
   baseVP: number;
   agendaResults: AgendaResult[];
   agendaVP: number;

@@ -19,6 +19,7 @@ import {
   AGENDA_INFO,
   ALL_AGENDAS,
   ALL_PLAYER_IDS,
+  ALL_TILE_TYPES,
   BUILD_COST,
   INCOME_PER_UNIT,
   MAX_PLAYERS,
@@ -271,10 +272,12 @@ export function legalBuildActions(state: GameState, player: PlayerId): LegalBuil
   const hasResidentialCapacity = residentialCapacitySurplus(state.board, player) >= 1;
   const result: LegalBuild[] = [];
   for (const [r, c] of squares) {
-    (['residential', 'commercial'] as TileType[]).forEach((tileType) => {
+    ALL_TILE_TYPES.forEach((tileType) => {
       const cost = currentBuildCost(state, tileType);
       if (cash < cost) return;
-      if (tileType === 'commercial' && !hasResidentialCapacity) return;
+      // Only residential is self-covering for capacity — commercial and
+      // parks both need a resident behind them.
+      if (tileType !== 'residential' && !hasResidentialCapacity) return;
       result.push({ row: r, col: c, tileType, cost });
     });
   }
@@ -304,6 +307,7 @@ export function legalStackActions(state: GameState, player: PlayerId): LegalStac
       const cell = state.board[r][c];
       if (!cell || cell === 'townhall') continue;
       if (cell.owner !== player) continue;
+      if (cell.type === 'park') continue;
       if (cell.stories >= MAX_STORIES) continue;
       const nextStory = (cell.stories + 1) as 2 | 3;
       const cost = STACK_COST[nextStory];
@@ -642,6 +646,20 @@ export function commercialUnits(board: Cell[][], player: PlayerId): number {
   return total;
 }
 
+export function parkUnits(board: Cell[][], player: PlayerId): number {
+  const size = board.length;
+  let total = 0;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const cell = board[r][c];
+      if (cell && cell !== 'townhall' && cell.owner === player && cell.type === 'park') {
+        total += 1;
+      }
+    }
+  }
+  return total;
+}
+
 // Largest connected cluster of a player's own commercial tiles, scored by
 // total commercial units (stories) in that cluster — not raw tile count, so
 // stacking within a cluster helps win it too.
@@ -803,12 +821,14 @@ export function evaluateAllAgendas(state: GameState, player: PlayerId): AgendaRe
 export function scoreBreakdownFor(state: GameState, player: PlayerId): ScoreBreakdown {
   const res = residentialUnits(state.board, player);
   const com = commercialUnits(state.board, player);
-  const baseVP = res * VP_PER_UNIT.residential + com * VP_PER_UNIT.commercial;
+  const park = parkUnits(state.board, player);
+  const baseVP = res * VP_PER_UNIT.residential + com * VP_PER_UNIT.commercial + park * VP_PER_UNIT.park;
   const agendaResults = evaluateAllAgendas(state, player);
   const agendaVP = agendaResults.reduce((sum, r) => sum + r.vp, 0);
   return {
     residentialUnits: res,
     commercialUnits: com,
+    parkUnits: park,
     baseVP,
     agendaResults,
     agendaVP,

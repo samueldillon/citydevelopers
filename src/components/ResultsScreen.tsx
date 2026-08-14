@@ -25,6 +25,8 @@ function ScoreCard({ state, player }: { state: GameState; player: PlayerId }) {
         <dd>{score.residentialUnits} → {score.residentialUnits} VP</dd>
         <dt>Commercial units</dt>
         <dd>{score.commercialUnits} → {score.commercialUnits * 2} VP</dd>
+        <dt>Park units</dt>
+        <dd>{score.parkUnits} → {score.parkUnits * 5} VP</dd>
         <dt>Agenda bonus</dt>
         <dd>{score.agendaVP} VP</dd>
         <dt>Cash on hand</dt>

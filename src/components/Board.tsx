@@ -17,6 +17,12 @@ function ownerClass(owner: PlayerId): string {
   return `owner-${owner.toLowerCase()}`;
 }
 
+const TILE_LETTER: Record<string, string> = {
+  residential: 'R',
+  commercial: 'C',
+  park: 'P',
+};
+
 function cellContent(cell: Cell) {
   if (cell === 'townhall') {
     return (
@@ -28,8 +34,8 @@ function cellContent(cell: Cell) {
   if (cell === null) return null;
   return (
     <div className={`cell-inner ${ownerClass(cell.owner)} type-${cell.type}`}>
-      <span className="tile-type">{cell.type === 'residential' ? 'R' : 'C'}</span>
-      <span className="story-badge">{cell.stories}</span>
+      <span className="tile-type">{TILE_LETTER[cell.type]}</span>
+      {cell.type !== 'park' && <span className="story-badge">{cell.stories}</span>}
     </div>
   );
 }

@@ -23,6 +23,8 @@ function PlayerCard({ state, player }: { state: GameState; player: PlayerId }) {
         <dd>{score.residentialUnits}</dd>
         <dt>Commercial units</dt>
         <dd>{score.commercialUnits}</dd>
+        <dt>Park units</dt>
+        <dd>{score.parkUnits}</dd>
         <dt>VP so far</dt>
         <dd title="Includes any agenda bonuses currently met — recalculated live, not locked in until game end">
           {score.totalVP}
@@ -66,6 +68,8 @@ export default function StatusPanel({ state }: Props) {
           <dd>${currentBuildCost(state, 'residential')}M</dd>
           <dt>Commercial</dt>
           <dd>${currentBuildCost(state, 'commercial')}M</dd>
+          <dt>Park</dt>
+          <dd>${currentBuildCost(state, 'park')}M</dd>
         </dl>
         <p className="agenda-detail">
           Rises $1M every {priceTierBuilds(state.board.length, state.playerOrder.length)} new builds (either

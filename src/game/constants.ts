@@ -12,9 +12,15 @@ export const MAX_PLAYERS = 4;
 
 export const STARTING_CASH = 3;
 
+export const ALL_TILE_TYPES: TileType[] = ['residential', 'commercial', 'park'];
+
+// Parks cost more up front than either income-generating type — they pay
+// out a big one-time VP bonus instead of ongoing rent, so the price reflects
+// that lump-sum value rather than a stream of future income.
 export const BUILD_COST: Record<TileType, number> = {
   residential: 1,
   commercial: 2,
+  park: 3,
 };
 
 // New-build prices escalate as the game goes on: every N new builds (of
@@ -28,14 +34,20 @@ export const STACK_COST: Record<2 | 3, number> = {
   3: 3,
 };
 
+// Parks earn no rent at all.
 export const INCOME_PER_UNIT: Record<TileType, number> = {
   residential: 1,
   commercial: 2,
+  park: 0,
 };
 
+// Parks are worth a flat 5 VP each at game end instead of ongoing income.
+// They're always single-story (parks don't stack), so this is simply 5 VP
+// per park owned.
 export const VP_PER_UNIT: Record<TileType, number> = {
   residential: 1,
   commercial: 2,
+  park: 5,
 };
 
 export const MAX_STORIES = 3;

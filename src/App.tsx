@@ -250,18 +250,22 @@ export default function App() {
             <summary>Quick rules reference</summary>
             <ul>
               <li>
-                Build: Residential $1M / Commercial $2M base price, must be adjacent to Town Hall or one of your
-                own tiles — you can't piggyback on another player's development.
+                Build: Residential $1M / Commercial $2M / Park $3M base price, must be adjacent to Town Hall or
+                one of your own tiles — you can't piggyback on another player's development.
               </li>
               <li>
                 New-build prices rise as the game goes: every N new builds (N scales with player count and board
-                size — see the status panel for the current number) adds $1M to both types' price, for the rest
-                of the game. Stacking costs stay fixed.
+                size — see the status panel for the current number) adds $1M to all three types' price, for the
+                rest of the game. Stacking costs stay fixed.
               </li>
               <li>
                 Every tile you own needs a resident behind it: your total residential units (stories) must cover
-                your total tile count. Residential builds are self-covering, so this only ever gates commercial —
-                stack a residential tile to free up capacity before building commercial.
+                your total tile count. Residential builds are self-covering, so this only ever gates commercial
+                and park builds — stack a residential tile to free up capacity before building either.
+              </li>
+              <li>
+                Parks earn no income at all, but are worth a flat 5 VP each at game end — a lump-sum bet instead
+                of ongoing rent. They're always single-story and never stack.
               </li>
               <li>Stack: 2nd floor $2M flat. 3rd floor is scarce — wanting one triggers a blind auction among
                 every player with an eligible tile of that type: everyone bids sealed in turn order starting
@@ -273,8 +277,8 @@ export default function App() {
               </li>
               <li>Game ends when the board is completely full, or every player passes in a row.</li>
               <li>
-                Scoring: 1 VP/residential unit, 2 VP/commercial unit, plus a bonus for every agenda below you
-                win at game end — they're open to any player, and one player can win several at once. Each
+                Scoring: 1 VP/residential unit, 2 VP/commercial unit, 5 VP/park, plus a bonus for every agenda
+                below you win at game end — they're open to any player, and one player can win several at once. Each
                 agenda has exactly one winner (whoever's highest on its metric); ties break on cash on hand,
                 then turn order. Live progress toward each shows on your player card as you play.
               </li>
