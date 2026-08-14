@@ -2,7 +2,6 @@ import type { Action, GameState, PlayerId } from '../types';
 import {
   eligibleAuctionPlacementSquares,
   legalBuildActions,
-  legalSetupSquares,
   legalStackActions,
   neighbors,
   playerState,
@@ -17,26 +16,6 @@ import { INCOME_PER_UNIT, STACK_COST, VP_PER_UNIT } from './constants';
 
 function isEdge(row: number, col: number, size: number): boolean {
   return row === 0 || row === size - 1 || col === 0 || col === size - 1;
-}
-
-export function chooseAiSetupSquare(state: GameState): [number, number] {
-  const options = legalSetupSquares(state);
-  if (options.length === 0) throw new Error('No legal setup squares');
-  // Prefer squares that open up the most future adjacency (more empty neighbors),
-  // so the AI doesn't box itself in early.
-  let best = options[0];
-  let bestScore = -Infinity;
-  for (const [r, c] of options) {
-    const openNeighbors = neighbors(r, c, state.board.length).filter(
-      ([nr, nc]) => state.board[nr][nc] === null,
-    ).length;
-    const score = openNeighbors + Math.random() * 0.1;
-    if (score > bestScore) {
-      bestScore = score;
-      best = [r, c];
-    }
-  }
-  return best;
 }
 
 export function chooseAiAction(state: GameState, player: PlayerId): Action {

@@ -11,13 +11,11 @@ import {
   eligibleAuctionPlacementSquares,
   initiateAuction,
   legalBuildActions,
-  legalSetupSquares,
   legalStackActions,
-  placeSetupTile,
   playerState,
   submitAuctionBid,
 } from './game/engine';
-import { chooseAiAction, chooseAiAuctionPlacement, chooseAiBid, chooseAiSetupSquare } from './game/ai';
+import { chooseAiAction, chooseAiAuctionPlacement, chooseAiBid } from './game/ai';
 import GameSetup from './components/GameSetup';
 import Board from './components/Board';
 import StatusPanel from './components/StatusPanel';
@@ -80,10 +78,6 @@ export default function App() {
       setState((prev) => {
         if (!prev || prev.phase === 'ended' || prev.phase === 'auction') return prev;
         if (playerState(prev, prev.currentPlayer).kind !== 'ai') return prev;
-        if (prev.phase === 'setup') {
-          const [r, c] = chooseAiSetupSquare(prev);
-          return placeSetupTile(prev, r, c);
-        }
         const action = chooseAiAction(prev, prev.currentPlayer);
         return applyAction(prev, action);
       });
@@ -102,9 +96,7 @@ export default function App() {
     );
   }
 
-  const humanTurn =
-    (state.phase === 'setup' || state.phase === 'playing') &&
-    playerState(state, state.currentPlayer).kind === 'human';
+  const humanTurn = state.phase === 'playing' && playerState(state, state.currentPlayer).kind === 'human';
 
   const auctionBidderId = state.phase === 'auction' ? currentAuctionBidder(state) : null;
   const auctionWinnerId =
@@ -116,13 +108,9 @@ export default function App() {
 
   const legalSquares = new Set<string>();
   const stackableSquares = new Set<string>();
-  if (humanTurn) {
-    if (state.phase === 'setup') {
-      legalSetupSquares(state).forEach(([r, c]) => legalSquares.add(key(r, c)));
-    } else if (state.phase === 'playing') {
-      legalBuildActions(state, state.currentPlayer).forEach((a) => legalSquares.add(key(a.row, a.col)));
-      legalStackActions(state, state.currentPlayer).forEach((a) => stackableSquares.add(key(a.row, a.col)));
-    }
+  if (humanTurn && state.phase === 'playing') {
+    legalBuildActions(state, state.currentPlayer).forEach((a) => legalSquares.add(key(a.row, a.col)));
+    legalStackActions(state, state.currentPlayer).forEach((a) => stackableSquares.add(key(a.row, a.col)));
   }
   if (state.phase === 'auction' && state.auction?.stage === 'placing' && auctionParticipantIsHuman) {
     eligibleAuctionPlacementSquares(state).forEach(([r, c]) => stackableSquares.add(key(r, c)));
@@ -133,10 +121,6 @@ export default function App() {
 
   function handleCellClick(row: number, col: number) {
     if (!state) return;
-    if (state.phase === 'setup') {
-      setState(placeSetupTile(state, row, col));
-      return;
-    }
     if (state.phase === 'auction' && state.auction?.stage === 'placing') {
       setState(applyAuctionPlacement(state, row, col));
       return;
@@ -180,19 +164,13 @@ export default function App() {
 
   const currentLabel = playerState(state, state.currentPlayer).label;
   const stepText =
-    state.phase === 'setup'
-      ? `Setup — ${currentLabel} places a residential tile ${
-          state.setupStep < state.playerOrder.length
-            ? 'adjacent to Town Hall'
-            : 'adjacent to Town Hall or their own tile'
-        }.`
-      : state.phase === 'auction'
-        ? state.auction?.stage === 'bidding'
-          ? `Blind auction for a 3rd floor ${state.auction.tileType} tile — bidding in progress.`
-          : `${playerState(state, state.auction!.winner!).label} won the auction — placing their 3rd floor.`
-        : state.phase === 'playing'
-          ? `${currentLabel}'s turn`
-          : 'Game over';
+    state.phase === 'auction'
+      ? state.auction?.stage === 'bidding'
+        ? `Blind auction for a 3rd floor ${state.auction.tileType} tile — bidding in progress.`
+        : `${playerState(state, state.auction!.winner!).label} won the auction — placing their 3rd floor.`
+      : state.phase === 'playing'
+        ? `${currentLabel}'s turn`
+        : 'Game over';
 
   return (
     <div className="app">
@@ -213,9 +191,7 @@ export default function App() {
               interactive={boardInteractive}
               onCellClick={handleCellClick}
             />
-            {(state.phase === 'setup' || state.phase === 'playing') && !humanTurn && (
-              <p className="ai-thinking">Computer is thinking…</p>
-            )}
+            {state.phase === 'playing' && !humanTurn && <p className="ai-thinking">Computer is thinking…</p>}
             {state.phase === 'auction' && !auctionParticipantIsHuman && activeAuctionParticipant && (
               <p className="ai-thinking">
                 {playerState(state, activeAuctionParticipant).label}
@@ -250,8 +226,8 @@ export default function App() {
             <summary>Quick rules reference</summary>
             <ul>
               <li>
-                Build: Residential $1M / Commercial $2M / Park $3M base price, must be adjacent to Town Hall or
-                one of your own tiles — you can't piggyback on another player's development.
+                Build: Residential $1M / Commercial $2M / Park $3M base price, on any empty square on the board —
+                no adjacency required.
               </li>
               <li>
                 New-build prices rise as the game goes: every N new builds (N scales with player count and board

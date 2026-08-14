@@ -12,7 +12,6 @@ import type {
   Pools,
   ScoreBreakdown,
   SeatConfig,
-  SetupStepDef,
   TileType,
 } from '../types';
 import {
@@ -86,27 +85,6 @@ export function neighbors(row: number, col: number, size: number): Array<[number
     .filter(([r, c]) => r >= 0 && r < size && c >= 0 && c < size);
 }
 
-export function isAdjacentToTownHall(row: number, col: number, size: number): boolean {
-  const th = townHallPos(size);
-  return neighbors(row, col, size).some(([r, c]) => r === th && c === th);
-}
-
-export function isAdjacentToOwnTile(board: Cell[][], row: number, col: number, player: PlayerId): boolean {
-  return neighbors(row, col, board.length).some(([r, c]) => {
-    const cell = board[r][c];
-    return cell !== null && cell !== 'townhall' && cell.owner === player;
-  });
-}
-
-// A player may only build adjacent to Town Hall or a tile they already own —
-// their development has to grow out from their own footprint, not piggyback
-// on another player's.
-export function isAdjacentToOwnOrTownHall(board: Cell[][], row: number, col: number, player: PlayerId): boolean {
-  return isAdjacentToTownHall(row, col, board.length) || isAdjacentToOwnTile(board, row, col, player);
-}
-
-// ---------- setup ----------
-
 export function createInitialState(seats: SeatConfig[], boardSize: number): GameState {
   if (seats.length < MIN_PLAYERS || seats.length > MAX_PLAYERS) {
     throw new Error(`Player count must be between ${MIN_PLAYERS} and ${MAX_PLAYERS}`);
@@ -142,93 +120,28 @@ export function createInitialState(seats: SeatConfig[], boardSize: number): Game
 
   return {
     playerOrder,
-    phase: 'setup',
+    phase: 'playing',
     board,
     players,
     pools,
     currentPlayer: playerOrder[0],
-    setupStep: 0,
     passStreak: 0,
-    turnNumber: 0,
+    turnNumber: 1,
     buildsExecuted: 0,
-    log: [`${firstLabel} won the coin flip and places first.`],
-  };
-}
-
-// Setup is two rounds through the turn order: everyone places their first
-// tile (adjacent to Town Hall only), then everyone places their second tile
-// (adjacent to Town Hall or their own first tile).
-export function buildSetupSequence(playerOrder: PlayerId[]): SetupStepDef[] {
-  const round1 = playerOrder.map((player) => ({ player, rule: 'townhall' as const }));
-  const round2 = playerOrder.map((player) => ({ player, rule: 'ownOrTownHall' as const }));
-  return [...round1, ...round2];
-}
-
-export function legalSetupSquares(state: GameState): Array<[number, number]> {
-  if (state.phase !== 'setup') return [];
-  const stepDef = buildSetupSequence(state.playerOrder)[state.setupStep];
-  if (!stepDef) return [];
-  const size = state.board.length;
-  const result: Array<[number, number]> = [];
-  for (let r = 0; r < size; r++) {
-    for (let c = 0; c < size; c++) {
-      if (state.board[r][c] !== null) continue;
-      if (stepDef.rule === 'townhall') {
-        if (isAdjacentToTownHall(r, c, size)) result.push([r, c]);
-      } else {
-        if (isAdjacentToOwnOrTownHall(state.board, r, c, stepDef.player)) result.push([r, c]);
-      }
-    }
-  }
-  return result;
-}
-
-export function placeSetupTile(state: GameState, row: number, col: number): GameState {
-  const sequence = buildSetupSequence(state.playerOrder);
-  const stepDef = sequence[state.setupStep];
-  if (!stepDef) throw new Error('Setup already complete');
-  const legal = legalSetupSquares(state);
-  if (!legal.some(([r, c]) => r === row && c === col)) {
-    throw new Error('Illegal setup placement');
-  }
-
-  const board = cloneBoard(state.board);
-  const tile: BuiltTile = { type: 'residential', owner: stepDef.player, stories: 1 };
-  board[row][col] = tile;
-
-  const nextSetupStep = state.setupStep + 1;
-  const label = `${playerState(state, stepDef.player).label} places a residential tile at (${row + 1}, ${col + 1}).`;
-
-  if (nextSetupStep >= sequence.length) {
-    const firstPlayer = state.playerOrder[0];
-    return {
-      ...state,
-      board,
-      setupStep: nextSetupStep,
-      phase: 'playing',
-      currentPlayer: firstPlayer,
-      turnNumber: 1,
-      log: [...state.log, label, `Setup complete. ${playerState(state, firstPlayer).label} takes the first turn.`],
-    };
-  }
-
-  return {
-    ...state,
-    board,
-    setupStep: nextSetupStep,
-    currentPlayer: sequence[nextSetupStep].player,
-    log: [...state.log, label],
+    log: [`${firstLabel} won the coin flip and takes the first turn.`],
   };
 }
 
 // ---------- legal actions during play ----------
 
-export function emptyAdjacencyLegalSquares(board: Cell[][], player: PlayerId): Array<[number, number]> {
+// Any empty buildable square is fair game — a build doesn't need to connect
+// to Town Hall or anything the player already owns.
+export function emptyBuildableSquares(board: Cell[][]): Array<[number, number]> {
   const size = board.length;
   const result: Array<[number, number]> = [];
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
-      if (board[r][c] === null && isAdjacentToOwnOrTownHall(board, r, c, player)) {
+      if (board[r][c] === null) {
         result.push([r, c]);
       }
     }
@@ -267,7 +180,7 @@ export function currentBuildCost(state: GameState, tileType: TileType): number {
 }
 
 export function legalBuildActions(state: GameState, player: PlayerId): LegalBuild[] {
-  const squares = emptyAdjacencyLegalSquares(state.board, player);
+  const squares = emptyBuildableSquares(state.board);
   const cash = playerState(state, player).cash;
   const hasResidentialCapacity = residentialCapacitySurplus(state.board, player) >= 1;
   const result: LegalBuild[] = [];

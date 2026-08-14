@@ -2,7 +2,7 @@ export type PlayerId = 'P1' | 'P2' | 'P3' | 'P4';
 export type TileType = 'residential' | 'commercial' | 'park';
 export type PlayerKind = 'human' | 'ai';
 export type AgendaId = 'landlord' | 'cbd' | 'lowrise' | 'suburbs' | 'urbanjungle';
-export type GamePhase = 'setup' | 'playing' | 'auction' | 'ended';
+export type GamePhase = 'playing' | 'auction' | 'ended';
 
 export interface BuiltTile {
   type: TileType;
@@ -29,11 +29,6 @@ export interface PlayerState {
 // turn-order shuffle assigns it a PlayerId).
 export interface SeatConfig {
   kind: PlayerKind;
-}
-
-export interface SetupStepDef {
-  player: PlayerId;
-  rule: 'townhall' | 'ownOrTownHall';
 }
 
 export interface AgendaResult {
@@ -86,7 +81,6 @@ export interface GameState {
   players: Partial<Record<PlayerId, PlayerState>>;
   pools: Pools;
   currentPlayer: PlayerId;
-  setupStep: number;
   passStreak: number;
   turnNumber: number;
   buildsExecuted: number;
@@ -99,5 +93,4 @@ export type BuildAction = { kind: 'build'; row: number; col: number; tileType: T
 export type StackAction = { kind: 'stack'; row: number; col: number };
 export type PassAction = { kind: 'pass' };
 export type AuctionAction = { kind: 'auction'; row: number; col: number };
-export type SetupAction = { kind: 'setupPlace'; row: number; col: number };
 export type Action = BuildAction | StackAction | PassAction | AuctionAction;
