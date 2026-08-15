@@ -4,10 +4,11 @@ import {
   legalBuildActions,
   legalStackActions,
   neighbors,
+  occupiedTiles,
   playerState,
   residentialRentMultiplier,
 } from './engine';
-import { INCOME_PER_UNIT, STACK_COST, VP_PER_UNIT } from './constants';
+import { FREE_UPKEEP_TILES, INCOME_PER_UNIT, STACK_COST, UPKEEP_PER_TILE, VP_PER_UNIT } from './constants';
 
 // Simple heuristic AI. Priority: always return a legal action. Beyond that,
 // prefer moves that grow income, and since every agenda is open to any
@@ -29,15 +30,21 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
   type Scored = { score: number; action: Action };
   const candidates: Scored[] = [];
   const size = state.board.length;
+  // Whether the next tile built still falls inside the free-upkeep
+  // allowance — matters for valuing a build correctly early on.
+  const nextTileIsFree = occupiedTiles(state.board, player) < FREE_UPKEEP_TILES;
 
   for (const b of builds) {
-    // Income drives most of the scoring, but parks earn no income at all —
-    // this VP term is what gives the AI a reason to ever build one.
+    // Net income (after the new tile's own upkeep, if it's past the free
+    // allowance) drives most of the scoring, but parks earn no income at
+    // all — this VP term is what gives the AI a reason to ever build one.
     // Residential income is also shaped by adjacent parks/commercial, so
     // factor that multiplier in — a spot next to a park is worth chasing,
     // a spot next to commercial is worth avoiding.
     const rentMult = b.tileType === 'residential' ? residentialRentMultiplier(state.board, b.row, b.col) : 1;
-    let score = INCOME_PER_UNIT[b.tileType] * rentMult * 3 - b.cost + VP_PER_UNIT[b.tileType] * 0.8;
+    const marginalUpkeep = nextTileIsFree ? 0 : UPKEEP_PER_TILE;
+    const netIncome = INCOME_PER_UNIT[b.tileType] * rentMult - marginalUpkeep;
+    let score = netIncome * 3 - b.cost + VP_PER_UNIT[b.tileType] * 0.8;
 
     if (b.tileType === 'residential') score += 1; // land lord lean
     if (b.tileType === 'residential' && isEdge(b.row, b.col, size)) score += 2; // suburbs lean

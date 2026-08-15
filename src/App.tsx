@@ -252,6 +252,12 @@ export default function App() {
                 $1M per residential unit + $2M per commercial unit you own — not on other players' turns.
               </li>
               <li>
+                Upkeep: also at the end of your own turn, you pay $1M for every tile beyond your first 2 (any
+                type, regardless of stories) — netted against that turn's income. Stacking raises income without
+                raising upkeep, so past the free allowance, growth only pays off once it's stacked or paired with
+                commercial. Cash never goes negative — upkeep can zero it out, not more.
+              </li>
+              <li>
                 Residential rent is doubled for every park orthogonally adjacent to it, and halved for every
                 adjacent commercial tile — regardless of who owns the neighbor. These stack (two adjacent parks
                 = 4x) and cancel out if both are present (park + commercial = back to normal), rounded down to

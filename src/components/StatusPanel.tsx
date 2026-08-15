@@ -1,5 +1,5 @@
 import type { GameState, PlayerId } from '../types';
-import { currentBuildCost, playerState, scoreBreakdownFor } from '../game/engine';
+import { currentBuildCost, playerState, scoreBreakdownFor, upkeepCost } from '../game/engine';
 import { AGENDA_INFO, priceTierBuilds } from '../game/constants';
 
 interface Props {
@@ -10,6 +10,7 @@ function PlayerCard({ state, player }: { state: GameState; player: PlayerId }) {
   const p = playerState(state, player);
   const score = scoreBreakdownFor(state, player);
   const isCurrent = state.currentPlayer === player && state.phase !== 'ended';
+  const upkeep = upkeepCost(state.board, player);
 
   return (
     <div className={`player-card owner-${player.toLowerCase()}-accent ${isCurrent ? 'active' : ''}`}>
@@ -19,6 +20,10 @@ function PlayerCard({ state, player }: { state: GameState; player: PlayerId }) {
       <dl>
         <dt>Cash</dt>
         <dd>${p.cash}M</dd>
+        <dt title="Charged per tile owned beyond the first 2, at the end of this player's turn, netted against income">
+          Upkeep
+        </dt>
+        <dd>{upkeep > 0 ? `-$${upkeep}M/turn` : '$0M/turn'}</dd>
         <dt>Residential units</dt>
         <dd>{score.residentialUnits}</dd>
         <dt>Commercial units</dt>

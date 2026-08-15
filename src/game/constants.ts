@@ -41,6 +41,27 @@ export const INCOME_PER_UNIT: Record<TileType, number> = {
   park: 0,
 };
 
+// Flat per-turn upkeep, charged per tile owned beyond the free allowance
+// below (any type, regardless of stories), alongside income at the end of
+// your own turn. Unlike income this doesn't scale with stacking, so it's the
+// counterweight to sprawl in particular: past the free allowance, a single
+// additional unstacked residential tile nets exactly $0/turn once its $1M
+// income is offset, while stacking or building commercial still turns a
+// profit. A brake on the income-outpaces-cost snowball documented in the
+// balance notes — first-cut number, meant to be tuned from playtests.
+export const UPKEEP_PER_TILE = 1;
+
+// The first FREE_UPKEEP_TILES tiles a player owns are exempt from upkeep.
+// Without this, a lone unstacked residential tile nets exactly $0/turn from
+// the very first build, and since only stacking (not building more
+// residential) ever creates spare capacity for commercial or a park, a
+// player who builds a couple of tiles before stacking has no way to ever
+// earn a surplus again — a permanent $0-cash dead end confirmed via
+// instrumented playtests (every AI-only game collapsed to a 2-3 turn
+// stalemate before this allowance was added). The allowance gives room to
+// build a small foothold and stack it before upkeep starts biting.
+export const FREE_UPKEEP_TILES = 2;
+
 // Parks are worth a flat 5 VP each at game end instead of ongoing income.
 // They're always single-story (parks don't stack), so this is simply 5 VP
 // per park owned.

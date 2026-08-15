@@ -27,8 +27,10 @@ import {
   poolsForBoardSize,
   PRICE_TIER_INCREMENT,
   priceTierBuilds,
+  FREE_UPKEEP_TILES,
   STACK_COST,
   STARTING_CASH,
+  UPKEEP_PER_TILE,
   VP_PER_UNIT,
 } from './constants';
 
@@ -263,10 +265,12 @@ function collectIncome(state: GameState): GameState {
   const player = state.currentPlayer;
   const size = state.board.length;
   let income = 0;
+  let tileCount = 0;
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
       const cell = state.board[r][c];
       if (cell && cell !== 'townhall' && cell.owner === player) {
+        tileCount += 1;
         const base = INCOME_PER_UNIT[cell.type] * cell.stories;
         // The rent modifier applies per-story (it scales the tile's whole
         // stories-based income), floored to the nearest whole dollar since
@@ -277,8 +281,13 @@ function collectIncome(state: GameState): GameState {
       }
     }
   }
+  // Upkeep is flat per tile owned beyond the free allowance (any type, any
+  // story count), so unlike income it doesn't grow with stacking — the
+  // counterweight to sprawl. Net can go negative for an under-developed
+  // footprint; cash floors at 0 rather than going into debt.
+  const upkeep = Math.max(0, tileCount - FREE_UPKEEP_TILES) * UPKEEP_PER_TILE;
   const ps = playerState(state, player);
-  const players = { ...state.players, [player]: { ...ps, cash: ps.cash + income } };
+  const players = { ...state.players, [player]: { ...ps, cash: Math.max(0, ps.cash + income - upkeep) } };
   return { ...state, players };
 }
 
@@ -553,6 +562,12 @@ export function occupiedTiles(board: Cell[][], player: PlayerId): number {
     }
   }
   return total;
+}
+
+// The per-turn upkeep a player is currently on the hook for, exposed for the
+// UI — matches the deduction collectIncome applies at the end of their turn.
+export function upkeepCost(board: Cell[][], player: PlayerId): number {
+  return Math.max(0, occupiedTiles(board, player) - FREE_UPKEEP_TILES) * UPKEEP_PER_TILE;
 }
 
 export function residentialUnits(board: Cell[][], player: PlayerId): number {
