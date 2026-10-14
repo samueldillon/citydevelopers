@@ -136,7 +136,7 @@ export const AGENDA_INFO: Record<AgendaId, { name: string; description: string; 
   suburbs: {
     name: 'Suburbs',
     description:
-      'Own 3 or more residential units on edge squares (the 16 border squares) at game end — most among qualifying players wins.',
+      'Own 3 or more single-story (unstacked) residential tiles on edge/border squares at game end — most among qualifying players wins.',
     vp: 2,
   },
   urbanjungle: {

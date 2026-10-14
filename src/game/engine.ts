@@ -662,6 +662,10 @@ function singleStoryTileCount(board: Cell[][], player: PlayerId): number {
   return count;
 }
 
+// Suburbs rewards sprawl specifically — only single-story (unstacked)
+// residential tiles count, so stacking an edge tile removes it from this
+// metric instead of adding to it (stacking is the Low Rise/Suburbs tradeoff:
+// good for income and Land Lord, bad for both "stay small" agendas).
 function suburbsUnits(board: Cell[][], player: PlayerId): number {
   const size = board.length;
   let total = 0;
@@ -670,8 +674,8 @@ function suburbsUnits(board: Cell[][], player: PlayerId): number {
       const isEdge = r === 0 || r === size - 1 || c === 0 || c === size - 1;
       if (!isEdge) continue;
       const cell = board[r][c];
-      if (cell && cell !== 'townhall' && cell.owner === player && cell.type === 'residential') {
-        total += cell.stories;
+      if (cell && cell !== 'townhall' && cell.owner === player && cell.type === 'residential' && cell.stories === 1) {
+        total += 1;
       }
     }
   }
@@ -774,7 +778,7 @@ function evaluateAgenda(state: GameState, player: PlayerId, agenda: AgendaId): A
     agenda,
     met,
     vp: met ? info.vp : 0,
-    detail: `${metric(player)} residential units on edge squares vs the best of the rest, ${best}.`,
+    detail: `${metric(player)} single-story residential tiles on edge squares vs the best of the rest, ${best}.`,
   };
 }
 

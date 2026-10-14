@@ -67,7 +67,9 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
 
     if (s.tileType === 'residential') score += 1; // land lord lean
     score -= 2.5; // low rise lean: stacking removes a tile from single-story count
-    if (s.tileType === 'residential' && isEdge(s.row, s.col, size)) score += 2; // suburbs lean
+    // No suburbs lean here: stacking an edge residential tile now removes
+    // it from Suburbs eligibility (unstacked-only) rather than helping, the
+    // same tradeoff the low-rise lean above already captures.
     if (s.tileType === 'commercial' && s.nextStory === 2) score += 1.5; // helps qualify a CBD group
 
     score += Math.random() * 0.5;
