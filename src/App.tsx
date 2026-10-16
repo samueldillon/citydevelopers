@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { GameState, SeatConfig, TileType } from './types';
 import {
   applyAction,
@@ -32,6 +32,7 @@ function key(r: number, c: number): string {
 export default function App() {
   const [state, setState] = useState<GameState | null>(null);
   const [selectedCell, setSelectedCell] = useState<[number, number] | null>(null);
+  const actionAreaRef = useRef<HTMLDivElement | null>(null);
 
   // Drive AI turns automatically: normal setup/build turns, plus auction
   // bidding and auction placement, whichever the current game state needs.
@@ -84,6 +85,29 @@ export default function App() {
     }, 550);
     return () => clearTimeout(timer);
   }, [state]);
+
+  // Scroll the action area into view whenever the human has something to act
+  // on — a tile just selected, their turn to bid, or they just won an
+  // auction and need to place their floor. On a tall board (especially on a
+  // phone) that area can otherwise sit below the fold.
+  useEffect(() => {
+    if (!state || state.phase === 'ended') return;
+    const isHumanTurn = state.phase === 'playing' && playerState(state, state.currentPlayer).kind === 'human';
+    const bidderId = state.phase === 'auction' ? currentAuctionBidder(state) : null;
+    const winnerId =
+      state.phase === 'auction' && state.auction?.stage === 'placing' ? (state.auction.winner ?? null) : null;
+    const participant = bidderId ?? winnerId;
+    const participantIsHuman = participant ? playerState(state, participant).kind === 'human' : false;
+
+    const needsAction =
+      (isHumanTurn && selectedCell !== null) ||
+      (state.phase === 'auction' && state.auction?.stage === 'bidding' && participantIsHuman) ||
+      (state.phase === 'auction' && state.auction?.stage === 'placing' && participantIsHuman);
+
+    if (needsAction) {
+      actionAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [state, selectedCell]);
 
   if (!state) {
     return (
@@ -181,7 +205,6 @@ export default function App() {
 
       {state.phase !== 'ended' && (
         <div className="game-layout">
-          <StatusPanel state={state} />
           <div className="board-column">
             <Board
               state={state}
@@ -191,36 +214,47 @@ export default function App() {
               interactive={boardInteractive}
               onCellClick={handleCellClick}
             />
-            {state.phase === 'playing' && !humanTurn && <p className="ai-thinking">Computer is thinking…</p>}
-            {state.phase === 'auction' && !auctionParticipantIsHuman && activeAuctionParticipant && (
-              <p className="ai-thinking">
-                {playerState(state, activeAuctionParticipant).label}
-                {state.auction?.stage === 'bidding' ? ' is bidding…' : ' is placing their 3rd floor…'}
-              </p>
-            )}
-            {state.phase === 'playing' && humanTurn && (
-              <ActionPanel
-                state={state}
-                selectedCell={selectedCell}
-                onBuild={handleBuild}
-                onStack={handleStack}
-                onStartAuction={handleStartAuction}
-                onCancel={() => setSelectedCell(null)}
-                onPass={handlePass}
-                canPass={humanTurn}
-              />
-            )}
-            {state.phase === 'auction' && state.auction?.stage === 'bidding' && auctionParticipantIsHuman && (
-              <AuctionPanel state={state} onSubmitBid={handleSubmitBid} />
-            )}
-            {state.phase === 'auction' && state.auction?.stage === 'placing' && auctionParticipantIsHuman && (
-              <div className="action-panel auction-panel">
-                <p className="hint">
-                  You won the auction for ${state.auction.winningBid}M! Click one of your highlighted tiles to
-                  place your 3rd floor.
+            <div className="action-area" ref={actionAreaRef}>
+              {state.phase === 'playing' && !humanTurn && <p className="ai-thinking">Computer is thinking…</p>}
+              {state.phase === 'auction' && !auctionParticipantIsHuman && activeAuctionParticipant && (
+                <p className="ai-thinking">
+                  {playerState(state, activeAuctionParticipant).label}
+                  {state.auction?.stage === 'bidding' ? ' is bidding…' : ' is placing their 3rd floor…'}
                 </p>
-              </div>
-            )}
+              )}
+              {state.phase === 'playing' && humanTurn && (
+                <ActionPanel
+                  state={state}
+                  selectedCell={selectedCell}
+                  onBuild={handleBuild}
+                  onStack={handleStack}
+                  onStartAuction={handleStartAuction}
+                  onCancel={() => setSelectedCell(null)}
+                  onPass={handlePass}
+                  canPass={humanTurn}
+                />
+              )}
+              {state.phase === 'auction' && state.auction?.stage === 'bidding' && auctionParticipantIsHuman && (
+                <AuctionPanel state={state} onSubmitBid={handleSubmitBid} />
+              )}
+              {state.phase === 'auction' && state.auction?.stage === 'placing' && auctionParticipantIsHuman && (
+                <div className="action-panel auction-panel">
+                  <p className="hint">
+                    You won the auction for ${state.auction.winningBid}M! Click one of your highlighted tiles to
+                    place your 3rd floor.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="stats-accordion">
+            <input type="checkbox" id="stats-toggle" className="stats-toggle-checkbox" />
+            <label htmlFor="stats-toggle" className="stats-toggle-label">
+              Players &amp; pools
+            </label>
+            <div className="status-panel-wrap">
+              <StatusPanel state={state} />
+            </div>
           </div>
           <details className="rules-summary">
             <summary>Quick rules reference</summary>

@@ -23,10 +23,58 @@
 }
 
 .status-panel {
-  grid-area: status;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.stats-accordion {
+  grid-area: status;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+/* Plain checkbox-driven accordion instead of <details> — <details>'s
+   closed-content rendering can't be reliably forced open with CSS alone
+   across browsers (Chromium in particular ignores a display override on
+   content while the element is closed), so a real toggle control is used
+   instead, fully controllable by sibling selectors. */
+.stats-toggle-checkbox {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.stats-toggle-label {
+  display: block;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.status-panel-wrap {
+  display: none;
+  margin-top: 12px;
+}
+
+.stats-toggle-checkbox:checked ~ .status-panel-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 801px) {
+  /* On desktop the sidebar has room to show everything, so the toggle is
+     hidden and the content is always shown regardless of checkbox state. */
+  .stats-toggle-label {
+    display: none;
+  }
+
+  .status-panel-wrap {
+    display: flex !important;
+    flex-direction: column;
+    margin-top: 0;
+  }
 }
 
 .player-card,
@@ -112,6 +160,14 @@ dd {
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  width: 100%;
+}
+
+.action-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
 }
 
 .board {
@@ -121,16 +177,16 @@ dd {
   background: var(--panel-bg);
   border-radius: 8px;
   overflow: hidden;
-  width: min(90vw, 480px);
+  width: min(calc(100vw - 32px), 480px);
   aspect-ratio: 1 / 1;
 }
 
 .board.board-lg {
-  width: min(92vw, 620px);
+  width: min(calc(100vw - 32px), 620px);
 }
 
 .board.board-xl {
-  width: min(95vw, 800px);
+  width: min(calc(100vw - 32px), 800px);
 }
 
 .board-lg .tile-type {
@@ -611,7 +667,8 @@ dd {
 @media (max-width: 800px) {
   .game-layout {
     grid-template-columns: 1fr;
-    grid-template-areas: 'status' 'board' 'rules';
+    grid-template-areas: 'board' 'status' 'rules';
+    gap: 14px;
   }
 
   .score-cards {
