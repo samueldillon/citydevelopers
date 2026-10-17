@@ -5,6 +5,7 @@ import {
   legalBuildActions,
   legalStackActions,
   neighbors,
+  parkUnits,
   playerState,
   residentialCapacitySurplus,
   residentialRentMultiplier,
@@ -37,6 +38,17 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
   // this one check covers both.
   const marginalStoryIsFree = totalOwnedStories(state.board, player) < FREE_UPKEEP_STORIES;
   const marginalUpkeep = marginalStoryIsFree ? 0 : UPKEEP_PER_STORY;
+  // Park's VP weight decays with how many the player already owns: a
+  // strong push toward a first park (and a second), tapering back to the
+  // baseline weight after that. A flat weight turned out unworkable —
+  // whichever constant made the AI build a first park at all made it build
+  // parks almost exclusively once it had a few (confirmed via instrumented
+  // self-play: the threshold between "never" and "~45% of all builds" was
+  // razor-thin, since build/stack scoring is a strict argmax, not a
+  // probabilistic choice — "sometimes competitive" isn't a stable state).
+  // Decaying by ownership keeps adoption real but self-limiting instead.
+  const ownedParks = parkUnits(state.board, player);
+  const parkVpWeight = Math.max(0.8, 2.6 - ownedParks * 0.6);
 
   for (const b of builds) {
     // Net income (after the new story's own upkeep, if it's past the free
@@ -47,7 +59,14 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
     // a spot next to commercial is worth avoiding.
     const rentMult = b.tileType === 'residential' ? residentialRentMultiplier(state.board, b.row, b.col) : 1;
     const netIncome = INCOME_PER_UNIT[b.tileType] * rentMult - marginalUpkeep;
-    let score = netIncome * 3 - b.cost + VP_PER_UNIT[b.tileType] * 0.8;
+    // Park's entire value proposition is its VP — it earns no income ever,
+    // so it needs a much stronger VP weight than residential/commercial to
+    // be a genuine contender rather than always losing on raw income terms.
+    // Without this the AI builds literally zero parks in practice (confirmed
+    // via many instrumented self-play games), which makes Urban Jungle
+    // uncontested and leaves park's own balance untested by self-play.
+    const vpWeight = b.tileType === 'park' ? parkVpWeight : 0.8;
+    let score = netIncome * 3 - b.cost + VP_PER_UNIT[b.tileType] * vpWeight;
 
     if (b.tileType === 'residential') score += 1; // land lord lean
     if (b.tileType === 'residential' && isEdge(b.row, b.col, size)) score += 2; // suburbs lean
@@ -58,6 +77,13 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
         return cell && cell !== 'townhall' && cell.owner === player && cell.type === 'commercial';
       });
       score += nextToOwnCommercial ? 2 : 0.5; // central business district lean
+    }
+    if (b.tileType === 'park') {
+      const nextToOwnPark = neighbors(b.row, b.col, size).some(([nr, nc]) => {
+        const cell = state.board[nr][nc];
+        return cell && cell !== 'townhall' && cell.owner === player && cell.type === 'park';
+      });
+      score += nextToOwnPark ? 2 : 0.5; // urban jungle lean, mirrors the CBD lean above
     }
 
     score += Math.random() * 0.5;
