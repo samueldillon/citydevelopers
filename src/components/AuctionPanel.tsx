@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { GameState } from '../types';
-import { playerState } from '../game/engine';
-import { STACK_COST } from '../game/constants';
+import { currentStackCost, playerState } from '../game/engine';
 
 interface Props {
   state: GameState;
@@ -12,7 +11,7 @@ export default function AuctionPanel({ state, onSubmitBid }: Props) {
   const auction = state.auction!;
   const bidderId = auction.eligibleBidders[auction.nextBidderIndex];
   const bidder = playerState(state, bidderId);
-  const floor = STACK_COST[3];
+  const floor = currentStackCost(state, 3);
   const [amount, setAmount] = useState(floor);
 
   const submittedCount = auction.nextBidderIndex;

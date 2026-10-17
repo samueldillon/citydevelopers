@@ -29,6 +29,11 @@ export const BUILD_COST: Record<TileType, number> = {
 // only targets the pace of new-tile expansion.
 export const PRICE_TIER_INCREMENT = 1;
 
+// Base stacking costs. The 2nd floor stays flat at this price always — it's
+// the only way to ever unlock residential capacity for commercial/park, so
+// it has to stay reliably affordable. The 3rd floor rides the same
+// escalating price tier new builds do (see currentStackCost in engine.ts),
+// since it's already auction-driven and scarce.
 export const STACK_COST: Record<2 | 3, number> = {
   2: 2,
   3: 3,
@@ -41,26 +46,37 @@ export const INCOME_PER_UNIT: Record<TileType, number> = {
   park: 0,
 };
 
-// Flat per-turn upkeep, charged per tile owned beyond the free allowance
-// below (any type, regardless of stories), alongside income at the end of
-// your own turn. Unlike income this doesn't scale with stacking, so it's the
-// counterweight to sprawl in particular: past the free allowance, a single
-// additional unstacked residential tile nets exactly $0/turn once its $1M
-// income is offset, while stacking or building commercial still turns a
-// profit. A brake on the income-outpaces-cost snowball documented in the
-// balance notes — first-cut number, meant to be tuned from playtests.
-export const UPKEEP_PER_TILE = 1;
+// Per-story upkeep, charged for every story owned beyond the free allowance
+// below (summed across all tiles, any type), alongside income at the end of
+// your own turn. Charging per STORY rather than per tile is deliberate: it
+// scales with stacking instead of ignoring it, so a tile's upkeep tracks the
+// income it actually produces. Net effect per story, once past the free
+// allowance: residential (1 income - 1 upkeep) nets exactly $0 regardless of
+// height, commercial (2 income - 1 upkeep) nets +$1, and park (0 income - 1
+// upkeep) nets -$1 — each type keeps a distinct economic identity instead of
+// stacking quietly escaping taxation the way a flat per-tile charge allowed.
+export const UPKEEP_PER_STORY = 1;
 
-// The first FREE_UPKEEP_TILES tiles a player owns are exempt from upkeep.
-// Without this, a lone unstacked residential tile nets exactly $0/turn from
-// the very first build, and since only stacking (not building more
-// residential) ever creates spare capacity for commercial or a park, a
-// player who builds a couple of tiles before stacking has no way to ever
-// earn a surplus again — a permanent $0-cash dead end confirmed via
-// instrumented playtests (every AI-only game collapsed to a 2-3 turn
-// stalemate before this allowance was added). The allowance gives room to
-// build a small foothold and stack it before upkeep starts biting.
-export const FREE_UPKEEP_TILES = 2;
+// The first FREE_UPKEEP_STORIES stories a player owns (summed across all
+// their tiles) are exempt from upkeep. Without this, a lone unstacked
+// residential tile nets exactly $0/turn from the very first build, and since
+// only stacking (not building more residential) ever creates spare capacity
+// for commercial or a park, a player who builds a couple of tiles before
+// stacking has no way to ever earn a surplus again — a permanent $0-cash
+// dead end confirmed via instrumented playtests (every AI-only game
+// collapsed to a 2-3 turn stalemate before an allowance was added). Counting
+// stories rather than tiles here also closes a loophole a tile-count
+// allowance left open: stacking a single tile all the way to 3 stories while
+// owning ≤2 tiles total used to dodge upkeep entirely despite the 3x income.
+// Set to 4 (not 2): since building or stacking residential is the *required*
+// setup phase before any commercial/park is possible, and both still cost
+// real cash and ride the shared build-price escalator while contributing
+// nothing net, a too-small allowance left players unable to ever save
+// enough to afford commercial once they finally had the capacity to build
+// it — confirmed via instrumented playtests (every game stalled with
+// residential capacity sitting unused, commercial already priced out of
+// reach). 4 gives enough runway through that setup phase.
+export const FREE_UPKEEP_STORIES = 4;
 
 // Parks are worth a flat 5 VP each at game end instead of ongoing income.
 // They're always single-story (parks don't stack), so this is simply 5 VP

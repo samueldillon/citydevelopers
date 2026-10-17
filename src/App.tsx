@@ -277,19 +277,23 @@ export default function App() {
                 Parks earn no income at all, but are worth a flat 5 VP each at game end — a lump-sum bet instead
                 of ongoing rent. They're always single-story and never stack.
               </li>
-              <li>Stack: 2nd floor $2M flat. 3rd floor is scarce — wanting one triggers a blind auction among
-                every player with an eligible tile of that type: everyone bids sealed in turn order starting
-                with whoever started it, highest bid wins (min $3M) and places immediately on one of their own
-                eligible tiles. Play then continues normally from whoever started the auction.</li>
+              <li>Stack: 2nd floor is always a flat $2M — the only way to unlock residential capacity for
+                commercial/park, so it has to stay reliably affordable. 3rd floor is scarce and its price
+                rises with the same escalating tier new builds use: wanting one triggers a blind auction among
+                every player with an eligible tile of that type — everyone bids sealed in turn order starting
+                with whoever started it, highest bid wins (min = the current 3rd-floor price) and places
+                immediately on one of their own eligible tiles. Play then continues normally from whoever
+                started the auction.</li>
               <li>
                 Income: at the end of your own turn (build, stack, pass, or an auction you started), you collect
                 $1M per residential unit + $2M per commercial unit you own — not on other players' turns.
               </li>
               <li>
-                Upkeep: also at the end of your own turn, you pay $1M for every tile beyond your first 2 (any
-                type, regardless of stories) — netted against that turn's income. Stacking raises income without
-                raising upkeep, so past the free allowance, growth only pays off once it's stacked or paired with
-                commercial. Cash never goes negative — upkeep can zero it out, not more.
+                Upkeep: also at the end of your own turn, you pay $1M for every <strong>story</strong> you own
+                beyond your first 4 (summed across all your tiles) — netted against that turn's income. Because
+                it's per-story, stacking raises upkeep right along with income: residential nets exactly $0/turn
+                per story either way, commercial nets +$1/turn per story, and park costs $1/turn per story (it
+                never stacks, so this is flat). Cash never goes negative — upkeep can zero it out, not more.
               </li>
               <li>
                 Residential rent is doubled for every park orthogonally adjacent to it, and halved for every

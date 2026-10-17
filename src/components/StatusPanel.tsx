@@ -1,5 +1,5 @@
 import type { GameState, PlayerId } from '../types';
-import { currentBuildCost, playerState, scoreBreakdownFor, upkeepCost } from '../game/engine';
+import { currentBuildCost, currentStackCost, playerState, scoreBreakdownFor, upkeepCost } from '../game/engine';
 import { AGENDA_INFO, priceTierBuilds } from '../game/constants';
 
 interface Props {
@@ -20,7 +20,7 @@ function PlayerCard({ state, player }: { state: GameState; player: PlayerId }) {
       <dl>
         <dt>Cash</dt>
         <dd>${p.cash}M</dd>
-        <dt title="Charged per tile owned beyond the first 2, at the end of this player's turn, netted against income">
+        <dt title="Charged per story owned beyond your first 4 (summed across all your tiles), at the end of this player's turn, netted against income">
           Upkeep
         </dt>
         <dd>{upkeep > 0 ? `-$${upkeep}M/turn` : '$0M/turn'}</dd>
@@ -80,6 +80,16 @@ export default function StatusPanel({ state }: Props) {
           Rises $1M every {priceTierBuilds(state.board.length, state.playerOrder.length)} new builds (either
           type, any player).
         </p>
+      </div>
+      <div className="pools-card">
+        <h3>Current stack price</h3>
+        <dl>
+          <dt>2nd floor</dt>
+          <dd>${currentStackCost(state, 2)}M</dd>
+          <dt>3rd floor (auction min)</dt>
+          <dd>${currentStackCost(state, 3)}M</dd>
+        </dl>
+        <p className="agenda-detail">2nd floor stays flat. 3rd floor rises with the build-price tier above.</p>
       </div>
     </div>
   );

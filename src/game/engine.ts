@@ -20,6 +20,7 @@ import {
   ALL_PLAYER_IDS,
   ALL_TILE_TYPES,
   BUILD_COST,
+  FREE_UPKEEP_STORIES,
   INCOME_PER_UNIT,
   MAX_PLAYERS,
   MAX_STORIES,
@@ -27,10 +28,9 @@ import {
   poolsForBoardSize,
   PRICE_TIER_INCREMENT,
   priceTierBuilds,
-  FREE_UPKEEP_TILES,
   STACK_COST,
   STARTING_CASH,
-  UPKEEP_PER_TILE,
+  UPKEEP_PER_STORY,
   VP_PER_UNIT,
 } from './constants';
 
@@ -181,6 +181,21 @@ export function currentBuildCost(state: GameState, tileType: TileType): number {
   return BUILD_COST[tileType] + currentBuildPriceTier(state) * PRICE_TIER_INCREMENT;
 }
 
+// Only the 3rd floor rides the same price-tier escalator new builds do —
+// it's already auction-driven and scarce, so letting it climb further with
+// the game's pace closes the "stacking stays cheap forever" gap without
+// touching anything structurally load-bearing. The 2nd floor stays flat at
+// its base cost: it's the *only* way to ever unlock residential capacity for
+// commercial/park, and escalating it collided badly with that — confirmed
+// via instrumented playtests, every game collapsed within seconds once the
+// shared build-count tier ticked up even once, because 2F stacking could
+// become unaffordable (from players' small starting cash) before anyone had
+// saved enough, permanently locking out commercial and park builds.
+export function currentStackCost(state: GameState, nextStory: 2 | 3): number {
+  if (nextStory === 2) return STACK_COST[2];
+  return STACK_COST[3] + currentBuildPriceTier(state) * PRICE_TIER_INCREMENT;
+}
+
 export function legalBuildActions(state: GameState, player: PlayerId): LegalBuild[] {
   const squares = emptyBuildableSquares(state.board);
   const cash = playerState(state, player).cash;
@@ -225,7 +240,7 @@ export function legalStackActions(state: GameState, player: PlayerId): LegalStac
       if (cell.type === 'park') continue;
       if (cell.stories >= MAX_STORIES) continue;
       const nextStory = (cell.stories + 1) as 2 | 3;
-      const cost = STACK_COST[nextStory];
+      const cost = currentStackCost(state, nextStory);
       const poolKey = poolKeyFor(cell.type, nextStory);
       if (cash >= cost && state.pools[poolKey] > 0) {
         result.push({ row: r, col: c, tileType: cell.type, nextStory, cost, poolKey });
@@ -265,12 +280,12 @@ function collectIncome(state: GameState): GameState {
   const player = state.currentPlayer;
   const size = state.board.length;
   let income = 0;
-  let tileCount = 0;
+  let totalStories = 0;
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
       const cell = state.board[r][c];
       if (cell && cell !== 'townhall' && cell.owner === player) {
-        tileCount += 1;
+        totalStories += cell.stories;
         const base = INCOME_PER_UNIT[cell.type] * cell.stories;
         // The rent modifier applies per-story (it scales the tile's whole
         // stories-based income), floored to the nearest whole dollar since
@@ -281,11 +296,12 @@ function collectIncome(state: GameState): GameState {
       }
     }
   }
-  // Upkeep is flat per tile owned beyond the free allowance (any type, any
-  // story count), so unlike income it doesn't grow with stacking — the
-  // counterweight to sprawl. Net can go negative for an under-developed
-  // footprint; cash floors at 0 rather than going into debt.
-  const upkeep = Math.max(0, tileCount - FREE_UPKEEP_TILES) * UPKEEP_PER_TILE;
+  // Upkeep is per story owned beyond the free allowance (summed across all
+  // tiles, any type), so unlike a flat per-tile charge it grows right along
+  // with stacking — the counterweight to the income stacking generates. Net
+  // can go negative for an under-developed footprint; cash floors at 0
+  // rather than going into debt.
+  const upkeep = Math.max(0, totalStories - FREE_UPKEEP_STORIES) * UPKEEP_PER_STORY;
   const ps = playerState(state, player);
   const players = { ...state.players, [player]: { ...ps, cash: Math.max(0, ps.cash + income - upkeep) } };
   return { ...state, players };
@@ -423,9 +439,10 @@ export function initiateAuction(state: GameState, row: number, col: number): Gam
   if (!action) throw new Error('Illegal auction initiation');
 
   const tileType = action.tileType;
+  const floor = currentStackCost(state, 3);
   const eligibleBidders = cyclicFrom(state.playerOrder, player).filter((p) => {
     const cash = playerState(state, p).cash;
-    return cash >= STACK_COST[3] && hasEligibleThirdFloorTile(state.board, p, tileType);
+    return cash >= floor && hasEligibleThirdFloorTile(state.board, p, tileType);
   });
 
   const auction: AuctionState = {
@@ -462,7 +479,7 @@ export function submitAuctionBid(state: GameState, bidder: PlayerId, amount: num
   if (expected !== bidder) throw new Error("Not this bidder's turn to bid");
 
   const cash = playerState(state, bidder).cash;
-  const clamped = Math.max(STACK_COST[3], Math.min(Math.round(amount), cash));
+  const clamped = Math.max(currentStackCost(state, 3), Math.min(Math.round(amount), cash));
 
   const bids = { ...auction.bids, [bidder]: clamped };
   const nextBidderIndex = auction.nextBidderIndex + 1;
@@ -564,10 +581,24 @@ export function occupiedTiles(board: Cell[][], player: PlayerId): number {
   return total;
 }
 
+// Total stories across every tile a player owns (any type) — what upkeep is
+// actually charged against, as opposed to occupiedTiles' plain tile count.
+export function totalOwnedStories(board: Cell[][], player: PlayerId): number {
+  const size = board.length;
+  let total = 0;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const cell = board[r][c];
+      if (cell && cell !== 'townhall' && cell.owner === player) total += cell.stories;
+    }
+  }
+  return total;
+}
+
 // The per-turn upkeep a player is currently on the hook for, exposed for the
 // UI — matches the deduction collectIncome applies at the end of their turn.
 export function upkeepCost(board: Cell[][], player: PlayerId): number {
-  return Math.max(0, occupiedTiles(board, player) - FREE_UPKEEP_TILES) * UPKEEP_PER_TILE;
+  return Math.max(0, totalOwnedStories(board, player) - FREE_UPKEEP_STORIES) * UPKEEP_PER_STORY;
 }
 
 export function residentialUnits(board: Cell[][], player: PlayerId): number {

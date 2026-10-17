@@ -1,14 +1,16 @@
 import type { Action, GameState, PlayerId } from '../types';
 import {
+  currentStackCost,
   eligibleAuctionPlacementSquares,
   legalBuildActions,
   legalStackActions,
   neighbors,
-  occupiedTiles,
   playerState,
+  residentialCapacitySurplus,
   residentialRentMultiplier,
+  totalOwnedStories,
 } from './engine';
-import { FREE_UPKEEP_TILES, INCOME_PER_UNIT, STACK_COST, UPKEEP_PER_TILE, VP_PER_UNIT } from './constants';
+import { FREE_UPKEEP_STORIES, INCOME_PER_UNIT, UPKEEP_PER_STORY, VP_PER_UNIT } from './constants';
 
 // Simple heuristic AI. Priority: always return a legal action. Beyond that,
 // prefer moves that grow income, and since every agenda is open to any
@@ -30,19 +32,20 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
   type Scored = { score: number; action: Action };
   const candidates: Scored[] = [];
   const size = state.board.length;
-  // Whether the next tile built still falls inside the free-upkeep
-  // allowance — matters for valuing a build correctly early on.
-  const nextTileIsFree = occupiedTiles(state.board, player) < FREE_UPKEEP_TILES;
+  // Whether the next story added — by a new build or a stack — still falls
+  // inside the free-upkeep allowance. Both actions add exactly one story, so
+  // this one check covers both.
+  const marginalStoryIsFree = totalOwnedStories(state.board, player) < FREE_UPKEEP_STORIES;
+  const marginalUpkeep = marginalStoryIsFree ? 0 : UPKEEP_PER_STORY;
 
   for (const b of builds) {
-    // Net income (after the new tile's own upkeep, if it's past the free
+    // Net income (after the new story's own upkeep, if it's past the free
     // allowance) drives most of the scoring, but parks earn no income at
     // all — this VP term is what gives the AI a reason to ever build one.
     // Residential income is also shaped by adjacent parks/commercial, so
     // factor that multiplier in — a spot next to a park is worth chasing,
     // a spot next to commercial is worth avoiding.
     const rentMult = b.tileType === 'residential' ? residentialRentMultiplier(state.board, b.row, b.col) : 1;
-    const marginalUpkeep = nextTileIsFree ? 0 : UPKEEP_PER_TILE;
     const netIncome = INCOME_PER_UNIT[b.tileType] * rentMult - marginalUpkeep;
     let score = netIncome * 3 - b.cost + VP_PER_UNIT[b.tileType] * 0.8;
 
@@ -61,11 +64,27 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
     candidates.push({ score, action: { kind: 'build', row: b.row, col: b.col, tileType: b.tileType } });
   }
 
+  // Stacking a residential tile is often the *only* way to ever unlock
+  // capacity for commercial/park (fresh residential builds are always
+  // capacity-neutral), so when there's currently no spare capacity, a
+  // residential stack has a one-time strategic payoff a pure net-income
+  // lens can't see. Without this, the AI can get stuck never stacking at
+  // all once stacking's net income looks no better than building new —
+  // confirmed via instrumented playtests, every game stalled within
+  // seconds, nobody ever unlocking commercial or park.
+  const needsCapacity = residentialCapacitySurplus(state.board, player) < 1;
+
   for (const s of stacks) {
     const rentMult = s.tileType === 'residential' ? residentialRentMultiplier(state.board, s.row, s.col) : 1;
-    let score = INCOME_PER_UNIT[s.tileType] * rentMult * 3 - s.cost;
+    const netIncome = INCOME_PER_UNIT[s.tileType] * rentMult - marginalUpkeep;
+    // Stacking produces VP too (same per-unit rate as a fresh build), which
+    // the net-income term alone doesn't capture.
+    let score = netIncome * 3 - s.cost + VP_PER_UNIT[s.tileType] * 0.8;
 
-    if (s.tileType === 'residential') score += 1; // land lord lean
+    if (s.tileType === 'residential') {
+      score += 1; // land lord lean
+      if (needsCapacity) score += 5; // unlocks capacity for commercial/park
+    }
     score -= 2.5; // low rise lean: stacking removes a tile from single-story count
     // No suburbs lean here: stacking an edge residential tile now removes
     // it from Suburbs eligibility (unstacked-only) rather than helping, the
@@ -85,13 +104,13 @@ export function chooseAiAction(state: GameState, player: PlayerId): Action {
   return candidates[0].action;
 }
 
-// Bid a bit above the $3M floor, more so if it's the AI's own auction (it
-// wants the tile it just went looking for), scaled by how much spare cash it
-// has and a little randomness so bids aren't perfectly predictable.
+// Bid a bit above the current floor, more so if it's the AI's own auction
+// (it wants the tile it just went looking for), scaled by how much spare
+// cash it has and a little randomness so bids aren't perfectly predictable.
 export function chooseAiBid(state: GameState, bidder: PlayerId): number {
   const auction = state.auction!;
   const cash = playerState(state, bidder).cash;
-  const floor = STACK_COST[3];
+  const floor = currentStackCost(state, 3);
   const isInitiator = auction.initiator === bidder;
   const willingness = isInitiator ? 0.4 : 0.2;
   const spare = Math.max(0, cash - floor);
