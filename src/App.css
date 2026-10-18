@@ -407,6 +407,31 @@ dd {
   border-color: var(--townhall);
 }
 
+.auction-bids-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.auction-bids-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.auction-bids-list li.winner {
+  background: var(--legal);
+  background: color-mix(in srgb, var(--legal) 20%, #fff);
+  font-weight: 700;
+}
+
 .bid-input-row {
   display: flex;
   flex-direction: column;

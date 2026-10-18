@@ -21,6 +21,7 @@ import Board from './components/Board';
 import StatusPanel from './components/StatusPanel';
 import ActionPanel from './components/ActionPanel';
 import AuctionPanel from './components/AuctionPanel';
+import AuctionBids from './components/AuctionBids';
 import ResultsScreen from './components/ResultsScreen';
 import { AGENDA_INFO } from './game/constants';
 import './App.css';
@@ -222,6 +223,7 @@ export default function App() {
                   {state.auction?.stage === 'bidding' ? ' is bidding…' : ' is placing their 3rd floor…'}
                 </p>
               )}
+              {state.phase === 'auction' && state.auction?.stage === 'placing' && <AuctionBids state={state} />}
               {state.phase === 'playing' && humanTurn && (
                 <ActionPanel
                   state={state}
@@ -282,7 +284,8 @@ export default function App() {
                 rises with the same escalating tier new builds use: wanting one triggers a blind auction among
                 every player with an eligible tile of that type — everyone bids sealed in turn order starting
                 with whoever started it, highest bid wins (min = the current 3rd-floor price) and places
-                immediately on one of their own eligible tiles. Play then continues normally from whoever
+                immediately on one of their own eligible tiles. Once bidding closes, every bid is revealed to
+                everyone while the winner places their floor. Play then continues normally from whoever
                 started the auction.</li>
               <li>
                 Income: at the end of your own turn (build, stack, pass, or an auction you started), you collect
